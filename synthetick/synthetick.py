@@ -11,7 +11,8 @@ class Ticks:
     Toi generate ticks uses a random walk approach
 
     # TODO: Produce ticks at random intervals
-    # TODO: Improve spread calculation to remove skeew towards 1
+    # TODO: Improve spread calculation to remove skewed towards 1
+    # TODO: Remove weekends
     """
 
     def __init__(self,
