@@ -1,6 +1,6 @@
 from datetime import datetime
 import pandas as pd
-from synthetick.synthetick import Ticks
+from synthetick.Synthetick import Ticks
 
 DATE_FROM: datetime = pd.to_datetime("2023-01-01 00:00:00")
 DATE_TO: datetime = pd.to_datetime("2023-02-01 00:00:00")
@@ -11,8 +11,9 @@ class TestSyntheticHappyPath:
     def test_gen_tick_date_range(self):
         tick_data_generator = Ticks(trend=0.01,
                                     volatility_range=10,
-                                    spread_range=[1, 2],
-                                    pip_position=4,
+                                    spread_min=0.5,
+                                    spread_max=3,
+                                    pip_position=-4,
                                     remove_weekend=True)
 
         tick_data_generator._compute_date_range(date_from=DATE_FROM,
@@ -28,11 +29,12 @@ class TestSyntheticHappyPath:
     def test_gen_tick_with_compute(self):
         tick_data_generator = Ticks(trend=0.01,
                                     volatility_range=10,
-                                    spread_range=[1, 2],
-                                    pip_position=4,
+                                    spread_min=0.5,
+                                    spread_max=3,
+                                    pip_position=-4,
                                     remove_weekend=True)
 
-        tick_data_generator.compute(date_from=DATE_FROM,
+        tick_data_generator.produce(date_from=DATE_FROM,
                                     date_to=DATE_TO,
                                     frequency="1s",
                                     init_value=1.1300)

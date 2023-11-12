@@ -1,5 +1,5 @@
 .idea/
-bid_1h.csv
+*.csv
 synthetick/__pycache__/
 tests/.ipynb_checkpoints/
 tests/__pycache__/
@@ -7,3 +7,5 @@ tests/bid_1h.csv
 tests/ohlc_bid_1h.csv
 tests/test_tick_happy_path.csv
 venv_310/
+build/
+synthetick.egg-info/

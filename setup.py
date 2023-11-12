@@ -1,8 +1,8 @@
 from setuptools import setup
 
 setup(
-    name='syntetick',
-    version='0.01',
+    name='synthetick',
+    version='0.02',
     packages=['synthetick'],
     url='',
     license='',

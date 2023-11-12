@@ -1,7 +1,7 @@
 
 from datetime import datetime
 import pandas as pd
-from synthetick.synthetick import OHLC
+from synthetick.Synthetick import OHLC
 
 
 DATE_FROM: datetime = pd.to_datetime("2023-01-01 00:00:00")
@@ -14,15 +14,16 @@ class TestOHLCHappyPath:
     Test OHLC Class
     """
     def test_ohlc_basic(self):
-        ohlc: OHLC = OHLC(trend=0.001,
+        ohlc: OHLC = OHLC(trend=0.0001,
                           volatility_range=10,
-                          spread_range=[1, 2],
-                          pip_position=4,
+                          spread_min=0.5,
+                          spread_max=3,
+                          pip_position=-4,
                           remove_weekend=True,
                           tick_frequency="1s",
                           time_frame="H")
 
-        ohlc.compute(date_from=DATE_FROM, date_to=DATE_TO, init_value=1.1300)
+        ohlc.produce(date_from=DATE_FROM, date_to=DATE_TO, init_value=1.300)
         assert pd.infer_freq(ohlc.ohlc_time_series["bid"].index) == "H"
         assert ohlc.ohlc_time_series["bid"].index[0] == DATE_FROM
         assert ohlc.ohlc_time_series["bid"].index[-1] == DATE_TO
