@@ -87,6 +87,5 @@ $spread_{max}$ Maximum value for the spread
 
 # TODO's
 
-1. Improve spread calculation: Current version calculates a spread skewed to the lower an upper limits
-   of the spread range.
+1. Improve documentation
 2. Produce ticks at random intervals.
