@@ -4,7 +4,7 @@ This is a Work In progress for a library to generate synthetic price time series
 
 At the bottom level the library generates tick data, on top of which it calculates price aggregations like OHLC or others.
 
-So essentially tick price is at the core so the model how tick price is calculated is presented in the next section.
+So, essentially, tick price is at the core so the model how tick price is calculated is presented in the next section.
 
 ## Tick Data Model
 
@@ -31,7 +31,7 @@ Replacing (2) in (3)
 
 $p_n = p_{n-2} + \Delta p_{n-1} + \Delta p_{n} (4)$
 
-If we now repeat the process replace g (1) in (4)
+If we now repeat the process to replace (1) in (4)
 
 $p_n = p_{n-3} + \Delta p_{n-2} + \Delta p_{n-1} + \Delta p_{n} (4)$
 
@@ -41,27 +41,23 @@ $p_n = p_{0} + \sum\limits_{i=1}^n \Delta p_i$
 
 If $\Delta p_{i}$ is produced by an stochastic process, then the series has the characteristics of a Random Walk.
 
-We make $\Delta p_{i} \approx N(\mu, \sigma)$ is a normal distribution with mean $\mu$ and standard deviation $\sigma$
+Meking $\Delta p_{i} \approx N(\mu, \sigma)$ a normal distribution with mean $\mu$ and standard deviation $\sigma$
 
-If $\mu$ is 0, then the price generation process is an unbiased random walk, but as will be shown later, using $\mu \neq 0$ (biased random walk) it is possible to control the price trend
+If $\mu$ is 0, then the price generation process is an unbiased random walk, but as will be shown later, using $\mu \neq 0$ (biased random walk) it is possible to control the price trend: up (long or bull), range or down (short or hawkish)
 
 With $\sigma$ it is possible to control price volatility.
 
-
-
-To wrap up this section, the tick price generation process has three parameters so far:
+To wrap up this section, the tick price generation process has three parameters:
 
 - $p_0$: First price in the series, necessary to calculate the remaining $n-1$ elements, with $n$ being the number of elements in the series.
-
 - $\mu$: Mean for the distribution of returns or price change.
-
 - $\sigma$: Standard deviation for the returns distribution.
 
 ### Bid, Ask, Spread
 
-The price of a financial asset comes in pairs: the price at wich you buy or Ask price, and the price at wich you sell or Bid. So for each new tick price, you need two values: Bid anbd Ask.
+The price of a financial asset comes in pairs: the price at wich you buy or Ask price, and the price at wich you sell or Bid. So for each new tick price, you need two values: Bid and Ask.
 
-The difference beteen both is the Spread:
+The difference between both is the Spread:
 
 $spread_i = Ask_i - Bid_i$
 
@@ -73,15 +69,35 @@ $Ask_i = Bid_i + Spread_i$
 
 Where:
 
-$Spread \in (SPREAD_{min}, SPREAD_{max})$ is calculated as a random value with unifoirm dsitribution between the rnge$SPREAD_{min}$ and $SPREAD_{max}$
-
-
+$Spread \in (SPREAD_{min}, SPREAD_{max})$ is calculated as a random value with unifoirm dsitribution between  $SPREAD_{min}$ and $SPREAD_{max}$
 
 This calculation adds two new parameters to the model:
 
 $spread_{min}$: Minimum value for the spread
 
 $spread_{max}$ Maximum value for the spread
+
+## Price Aggregations
+
+
+Price aggregations are data reductions by nean of applying functions on tick data for a period of time (candles or price bars), for a fix number of ticks (tick bars) or for a fix price change (renko bars).
+
+So far only OHLC data is supported and is claculated using pandas library
+
+
+```python
+tick.price_time_series["bid"].resample(<tick-data-time-series>).ohlc()
+```
+
+For more datails read [here](https://pandas.pydata.org/docs/reference/api/pandas.core.resample.Resampler.ohlc.html)
+
+
+TODO: add Renko and Tick Bars
+
+## How to Use
+
+
+### Install
 
 
 
