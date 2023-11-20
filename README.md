@@ -12,11 +12,16 @@ So, essentially, tick price is at the core so the model how tick price is calcul
 
 Let $p_0$ be the initial price value for the time series $P$, with $n$ elements, then the next price elements of the series are calculated as follows:
 
-$p_1 = p_0 + \Delta p_1$ <br>
-$p_2 = p_1 + \Delta p_2$ <br>
-... <br>
-$p_{n-2} = p_{n-3} + \Delta p_{n-2}$ (1) <br>
-$p_{n-1} = p_{n-2} + \Delta p_{n-1}$ (2) <br>
+$p_1 = p_0 + \Delta p_1$
+
+$p_2 = p_1 + \Delta p_2$
+
+...
+
+$p_{n-2} = p_{n-3} + \Delta p_{n-2}$ (1)
+
+$p_{n-1} = p_{n-2} + \Delta p_{n-1}$ (2)
+
 $p_{n} = p_{n-1} + \Delta p_{n}$ (3)
 
 Where:
@@ -41,7 +46,7 @@ $p_n = p_{0} + \sum\limits_{i=1}^n \Delta p_i$
 
 If $\Delta p_{i}$ is produced by an stochastic process, then the series has the characteristics of a Random Walk.
 
-Meking $\Delta p_{i} \approx N(\mu, \sigma)$ a normal distribution with mean $\mu$ and standard deviation $\sigma$
+Making $\Delta p_{i} \approx N(\mu, \sigma)$ a normal distribution with mean $\mu$ and standard deviation $\sigma$
 
 If $\mu$ is 0, then the price generation process is an unbiased random walk, but as will be shown later, using $\mu \neq 0$ (biased random walk) it is possible to control the price trend: up (long or bull), range or down (short or hawkish)
 
@@ -79,11 +84,9 @@ $spread_{max}$ Maximum value for the spread
 
 ## Price Aggregations
 
-
 Price aggregations are data reductions by nean of applying functions on tick data for a period of time (candles or price bars), for a fix number of ticks (tick bars) or for a fix price change (renko bars).
 
 So far only OHLC data is supported and is claculated using pandas library
-
 
 ```python
 tick.price_time_series["bid"].resample(<tick-data-time-series>).ohlc()
@@ -91,17 +94,65 @@ tick.price_time_series["bid"].resample(<tick-data-time-series>).ohlc()
 
 For more datails read [here](https://pandas.pydata.org/docs/reference/api/pandas.core.resample.Resampler.ohlc.html)
 
-
 TODO: add Renko and Tick Bars
 
 ## How to Use
 
-
 ### Install
 
+```shell
+pip install synthetick
+```
+
+### How to use
+
+##### Generating tick data.
+
+This example generates a time series of tick data with a frequency of 1 socond, uptrending, with a volatility range of 10 pips, a spread range from 0.5 to 3 pips, with the pip position at the 4th decimal place.
+
+```python
+
+  
+tick_data_generator = Ticks(trend=0.01,
+                            volatility_range=10,
+                            spread_min=0.5,
+                            spread_max=3,
+                            pip_position=-4,
+                            remove_weekend=True)
+
+tick_data_generator._compute_date_range(date_from=DATE_FROM,
+                                        date_to=DATE_TO,
+                                        frequency="1s",
+                                        init_value=1.1300)
+
+tick_data_generator.price_time_series.to_csv("test_tick_happy_path.csv", index_label="date-time")
+
+```
+
+[tick chart](tick-data.png)
+
+#### Generating OHLC Data
+
+```python
+      ohlc: OHLC = OHLC(trend=0.0001,
+                          volatility_range=10,
+                          spread_min=0.5,
+                          spread_max=3,
+                          pip_position=-4,
+                          remove_weekend=True,
+                          tick_frequency="1s",
+                          time_frame="H")
+
+        ohlc.produce(date_from=DATE_FROM, date_to=DATE_TO, init_value=1.300)
+        assert pd.infer_freq(ohlc.ohlc_time_series["bid"].index) == "H"
+        assert ohlc.ohlc_time_series["bid"].index[0] == DATE_FROM
+        assert ohlc.ohlc_time_series["bid"].index[-1] == DATE_TO
+
+        ohlc.ohlc_time_series["bid"].to_csv("ohlc_bid_1h.csv", index_label="date-time")
+```
 
 
-# TODO's
+TODO's
 
 1. Improve documentation
 2. Produce ticks at random intervals.
