@@ -129,7 +129,7 @@ tick_data_generator.price_time_series.to_csv("test_tick_happy_path.csv", index_l
 
 ```
 
-[tick chart](tick-data.png)
+![tick chart](./tick-data.png)
 
 #### Generating OHLC Data
 
