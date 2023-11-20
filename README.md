@@ -112,6 +112,13 @@ This example generates a time series of tick data with a frequency of 1 socond, 
 
 ```python
 
+
+from datetime import datetime
+import pandas as pd
+from synthetick.Synthetick import Ticks
+
+DATE_FROM: datetime = pd.to_datetime("2023-01-01 00:00:00")
+DATE_TO: datetime = pd.to_datetime("2023-02-01 00:00:00")
   
 tick_data_generator = Ticks(trend=0.01,
                             volatility_range=10,
@@ -127,32 +134,44 @@ tick_data_generator._compute_date_range(date_from=DATE_FROM,
 
 tick_data_generator.price_time_series.to_csv("test_tick_happy_path.csv", index_label="date-time")
 
+tick_data_generator.price_time_series[300:350][["bid", "ask"]].plot(figsize=(10,3), marker=".", cmap="PiYG")
 ```
 
-![tick chart](./tick-data.png)
+![](./tick-data.png)
 
-#### Generating OHLC Data
+##### Generating OHLC Data
 
 ```python
-      ohlc: OHLC = OHLC(trend=0.0001,
-                          volatility_range=10,
-                          spread_min=0.5,
-                          spread_max=3,
-                          pip_position=-4,
-                          remove_weekend=True,
-                          tick_frequency="1s",
-                          time_frame="H")
+from datetime import datetime
+import pandas as pd
+from synthetick.Synthetick import OHLC
+import mplfinance as mpf
 
-        ohlc.produce(date_from=DATE_FROM, date_to=DATE_TO, init_value=1.300)
-        assert pd.infer_freq(ohlc.ohlc_time_series["bid"].index) == "H"
-        assert ohlc.ohlc_time_series["bid"].index[0] == DATE_FROM
-        assert ohlc.ohlc_time_series["bid"].index[-1] == DATE_TO
+DATE_FROM: datetime = pd.to_datetime("2023-01-01 00:00:00")
+DATE_TO: datetime = pd.to_datetime("2023-02-01 00:00:00")
 
-        ohlc.ohlc_time_series["bid"].to_csv("ohlc_bid_1h.csv", index_label="date-time")
+ohlc: OHLC = OHLC(trend=0.0001,
+                  volatility_range=10,
+                  spread_min=0.5,
+                  spread_max=3,
+                  pip_position=-4,
+                  remove_weekend=True,
+                  tick_frequency="1s",
+                  time_frame="H")
+
+ohlc.produce(date_from=DATE_FROM, date_to=DATE_TO, init_value=1.300)
+ohlc.ohlc_time_series["bid"].to_csv("ohlc_bid_1h.csv", index_label="date-time")
+
+mc2 = mpf.make_marketcolors(up='blue',down='r')
+s2  = mpf.make_mpf_style(marketcolors=mc2)
+mpf.plot(ohlc.ohlc_time_series["bid"][200:400], type="candle", figsize=(15,4), style=s2)
 ```
 
+![](./ohlc_data.png)
 
-TODO's
+## TODO's
 
 1. Improve documentation
 2. Produce ticks at random intervals.
+3. Remove weekends option
+4. Change trend when price reaches zero level
