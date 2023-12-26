@@ -173,5 +173,4 @@ mpf.plot(ohlc.ohlc_time_series["bid"][200:400], type="candle", figsize=(15,4), s
 
 1. Improve documentation
 2. Produce ticks at random intervals.
-3. Remove weekends option
-4. Change trend when price reaches zero level
+3. Change trend when price reaches zero level

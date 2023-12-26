@@ -57,17 +57,20 @@ class Ticks(PriceTimeSeries):
         self._spread: Spread = Spread(pip_position)
         self.price_time_series: pd.DataFrame | None = None
 
+        self._control_stats: dict = {"total-periods": -1,
+                                     "weekend-dropped": -1,
+                                     "valid-trading-periods": -1}
+
         self._validate_parameters()
         self._apply_conversions()
+
+    @property
+    def control_stats(self):
+        return self._control_stats
 
     def _validate_parameters(self):
         self._validate_spread_range()
         self._validate_volatility_range()
-
-    def _validate_volatility_range(self):
-        if self._volatility_range_pip <= 0:
-            raise ValueError(f"Volatility range must be positive, got {self._volatility_range_pip} "
-                             f"instead")
 
     def _validate_spread_range(self):
         if self._spread_min <= 0:
@@ -76,22 +79,44 @@ class Ticks(PriceTimeSeries):
             raise ValueError(f"spread_max ({self._spread_max}) needs to be "
                              f"greater than spread_min ({self._spread_min})")
 
+    def _validate_volatility_range(self):
+        if self._volatility_range_pip <= 0:
+            raise ValueError(f"Volatility range must be positive, got {self._volatility_range_pip} "
+                             f"instead")
+
     def _apply_conversions(self):
         # self._convert_spread_range()
         self._convert_volatility_range()
         self._convert_trend()
 
-    def _convert_trend(self):
-        self._trend = self._trend_pip * self._pip_factor
-
     def _convert_volatility_range(self):
         self._volatility_range = self._volatility_range_pip * self._pip_factor
 
-    # def _convert_spread_range(self):
-    #     self._spread_range = [self._spread_range_pip[0] * self._pip_factor,
-    #                           self._spread_range_pip[1] * self._pip_factor]
-    #     self._spread_lower_bound: float = self._spread_range[0]
-    #     self._spread_upper_bound: float = self._spread_range[1]
+    def _convert_trend(self):
+        self._trend = self._trend_pip * self._pip_factor
+
+    def produce(self,
+                date_from: datetime = None,
+                date_to: datetime = None,
+                frequency: str = None,
+                init_value: float = None):
+        """
+        Generates tick data time series between date_from and date_to
+        :param date_from: Starting date for the time series
+        :param date_to: Limit date for the time series
+        :param frequency: Periods frequency. More details here:
+            https://pandas.pydata.org/pandas-docs/stable/user_guide/timeseries.html#offset-aliases
+        :param init_value: Initial value for the time series
+        :return:
+        """
+
+        if date_from is not None and date_to is not None:
+            self._compute_date_range(date_from, date_to, frequency, init_value)
+        else:
+            raise ValueError("Parameter combination not supported")
+
+        if self._remove_weekend:
+            self._remove_weekends()
 
     def _compute_date_range(self,
                             date_from: datetime,
@@ -105,49 +130,35 @@ class Ticks(PriceTimeSeries):
         delta_p: np.ndarray = np.random.normal(self._trend, self._volatility_range, periods - 1)
         delta_p = np.append([init_value], delta_p)
         self.price_time_series = pd.DataFrame({"delta_p": delta_p}, index=date_index)
-        self.price_time_series["bid"] = self.price_time_series["delta_p"].cumsum()
+        self.price_time_series[self.PRICE_BID] = self.price_time_series["delta_p"].cumsum()
 
         self._spread.produce(self._spread_min, self._spread_max, periods)
-        self.price_time_series["spread"] = self._spread.spread_raw
+        self.price_time_series[self.PRICE_SPREAD] = self._spread.spread_raw
 
-        self.price_time_series["ask"] = self.price_time_series["bid"] + self.price_time_series["spread"]
+        self.price_time_series[self.PRICE_ASK] = self.price_time_series[self.PRICE_BID] + self.price_time_series[
+            self.PRICE_SPREAD]
 
-    def _calculate_spread(self, lower_limit: float, upper_limit: float, periods: int):
+        self._control_stats["total-periods"] = len(self.price_time_series)
 
-        spread_mean = (lower_limit + upper_limit)/2
-        spread_std = spread_mean - lower_limit
-        spread = np.random.normal(spread_mean, spread_std, periods)
-        self._spread = np.clip(spread, lower_limit, upper_limit)
+    def _remove_weekends(self):
 
-    def produce(self,
-                date_from: datetime = None,
-                date_to: datetime = None,
-                frequency: str = None,
-                init_value: float = None):
-        """
-        Generates tick data time series between date_from and date_to
-        :param date_from: Starting date for the time series
-        :param date_to: Limit date for the time series
-        :param frequency: Periods frequency
-        :param init_value: Initial value for the time series
-        :return:
-        """
+        weekend_filter = (self.price_time_series.index.weekday == self.WEEKDAY_SAT) | (
+                self.price_time_series.index.weekday == self.WEEKDAY_SUN)
 
-        if date_from is not None and date_to is not None:
-            self._compute_date_range(date_from, date_to, frequency, init_value)
-        else:
-            raise ValueError("Parameter combination not supported")
+        self._control_stats["weekends-dropped"] = len(self.price_time_series[weekend_filter])
+        self.price_time_series.drop(labels=self.price_time_series[weekend_filter].index, inplace=True)
+        self._control_stats["valid-trading-periods"] = len(self.price_time_series)
 
 
 class Spread:
 
     def __init__(self, pip_position: int):
-        self._pip_factor = 10**pip_position
+        self._pip_factor = 10 ** pip_position
         self._spread: np.ndarray | None = None
 
     @property
     def spread_raw(self) -> np.ndarray:
-        return self._spread*self._pip_factor
+        return self._spread * self._pip_factor
 
     @property
     def spread_pip(self) -> np.ndarray:
@@ -171,6 +182,23 @@ class OHLC(PriceTimeSeries):
                  remove_weekend: bool,
                  tick_frequency: str,
                  time_frame: str):
+        """
+
+        :param trend: Set the price time series trend: uptrend, range or downtrend. Its value is the mean of the price
+        change for the next period, so if the value is greater and far from zero, the time series produced trends
+        upwards. In the other hand, if the value is lower and far from zero, the time series produced trends downwards.
+        Finally, if the value is close to zero, the time series produced is trendless or range bound.
+        :param volatility_range: Sets the standard deviation for the nex period price change. Indirectly sets the
+        price volatility.
+        :param spread_min: Minimum spread value in pips
+        :param spread_max: maximum spread value in pips
+        :param pip_position: At which decimal position the minimum meaningful price change (pip change) occurs.
+        :param remove_weekend: If true, remove weekends from produced time series
+        :param tick_frequency: At which frequency tick data is produced.
+        :param time_frame: OHLC time frame. More details here:
+            https://pandas.pydata.org/pandas-docs/stable/user_guide/timeseries.html#offset-aliases
+
+        """
         self._trend: float = trend
         self._volatility_range: float = volatility_range
         self._spread_min: float = spread_min
@@ -179,13 +207,21 @@ class OHLC(PriceTimeSeries):
         self._remove_weekends = remove_weekend
         self._tick_frequency: str = tick_frequency
         self._timeframe: str = time_frame
-        self.ohlc_time_series: dict = {"bid": None,
-                                       "ask": None}
+        self.ohlc_time_series: dict = {self.PRICE_BID: None,
+                                       self.PRICE_ASK: None}
 
     def produce(self,
                 date_from: datetime = None,
                 date_to: datetime = None,
                 init_value: float = None):
+        """
+        Generates OHLC data time series between date_from and date_to
+        :param date_from: Starting date for the time series
+        :param date_to: Limit date for the time series
+        :param init_value: Initial value for the time series
+        :return:
+        """
+
         tick = Ticks(self._trend,
                      self._volatility_range,
                      self._spread_min,
@@ -198,4 +234,19 @@ class OHLC(PriceTimeSeries):
                      frequency=self._tick_frequency,
                      init_value=init_value)
 
-        self.ohlc_time_series["bid"] = tick.price_time_series["bid"].resample(self._timeframe).ohlc()
+        self.ohlc_time_series[self.PRICE_BID] = tick.price_time_series[self.PRICE_BID].resample(self._timeframe).ohlc()
+        self.ohlc_time_series[self.PRICE_ASK] = tick.price_time_series[self.PRICE_ASK].resample(self._timeframe).ohlc()
+
+        if self._remove_weekends:
+            self.ohlc_time_series[self.PRICE_BID] = self._drop_weekends(self.ohlc_time_series[self.PRICE_BID])
+            self.ohlc_time_series[self.PRICE_ASK] = self._drop_weekends(self.ohlc_time_series[self.PRICE_ASK])
+
+    def _drop_weekends(self, price: pd.DataFrame) -> pd.DataFrame:
+
+        weekdays_filter = (price.index.weekday == self.WEEKDAY_SAT) | (
+                    price.index.weekday == self.WEEKDAY_SUN)
+        weekend_labels = price[weekdays_filter].index
+        price.drop(labels=weekend_labels, inplace=True)
+        return price
+
+
