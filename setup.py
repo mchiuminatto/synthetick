@@ -7,7 +7,7 @@ long_description = (this_directory/"README.md").read_text()
 
 setup(
     name='synthetick',
-    version='0.0.8',
+    version='0.1.0',
     packages=['synthetick'],
     url='https://github.com/mchiuminatto/syntetick.git',
     license='',
