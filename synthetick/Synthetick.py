@@ -207,6 +207,7 @@ class OHLC(PriceTimeSeries):
         self._remove_weekends = remove_weekend
         self._tick_frequency: str = tick_frequency
         self._timeframe: str = time_frame
+
         self.ohlc_time_series: dict = {self.PRICE_BID: None,
                                        self.PRICE_ASK: None}
 

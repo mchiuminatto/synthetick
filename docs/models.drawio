@@ -1,0 +1,111 @@
+<mxfile host="Electron" modified="2024-05-30T13:35:06.789Z" agent="Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) draw.io/24.4.8 Chrome/124.0.6367.207 Electron/30.0.6 Safari/537.36" etag="xByr4jKED93-G4bXclzq" version="24.4.8" type="device" pages="2">
+  <diagram name="Modules" id="1pYqA7Lr3BcMDMDRusJx">
+    <mxGraphModel dx="1434" dy="878" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="850" pageHeight="1100" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="AsQPVpmSjM7EVUU1cvnN-2" value="synthetick" style="shape=folder;fontStyle=1;spacingTop=10;tabWidth=150;tabHeight=40;tabPosition=left;html=1;whiteSpace=wrap;verticalAlign=top;" vertex="1" parent="1">
+          <mxGeometry x="60" y="150" width="780" height="390" as="geometry" />
+        </mxCell>
+        <mxCell id="AsQPVpmSjM7EVUU1cvnN-3" value="PriceTimeSeries" style="shape=module;align=left;spacingLeft=20;align=center;verticalAlign=top;whiteSpace=wrap;html=1;" vertex="1" parent="1">
+          <mxGeometry x="120" y="230" width="290" height="110" as="geometry" />
+        </mxCell>
+        <mxCell id="AsQPVpmSjM7EVUU1cvnN-4" value="Synthetick" style="shape=module;align=left;spacingLeft=20;align=center;verticalAlign=top;whiteSpace=wrap;html=1;" vertex="1" parent="1">
+          <mxGeometry x="480" y="230" width="290" height="110" as="geometry" />
+        </mxCell>
+        <mxCell id="AsQPVpmSjM7EVUU1cvnN-7" value="Stream" style="shape=module;align=left;spacingLeft=20;align=center;verticalAlign=top;whiteSpace=wrap;html=1;" vertex="1" parent="1">
+          <mxGeometry x="120" y="380" width="290" height="110" as="geometry" />
+        </mxCell>
+        <mxCell id="AsQPVpmSjM7EVUU1cvnN-8" value="&lt;h1 style=&quot;margin-top: 0px;&quot;&gt;Refactors&lt;/h1&gt;&lt;p&gt;&lt;/p&gt;&lt;ol&gt;&lt;li&gt;Move sythetick code to PriceTimeSeries&lt;/li&gt;&lt;li&gt;Creeate a new module whose responsibility is to generate stream price&lt;/li&gt;&lt;/ol&gt;&lt;p&gt;&lt;/p&gt;" style="text;html=1;whiteSpace=wrap;overflow=hidden;rounded=0;" vertex="1" parent="1">
+          <mxGeometry x="60" y="560" width="450" height="170" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+  <diagram id="BlOfOV_JXTINfmmyejDk" name="Stream Domain Analysis">
+    <mxGraphModel dx="2284" dy="878" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="850" pageHeight="1100" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="CW6RiXf8l8Z-WcTP8U0q-1" value="" style="endArrow=none;html=1;endSize=12;startArrow=none;startSize=14;startFill=0;edgeStyle=orthogonalEdgeStyle;align=center;verticalAlign=bottom;endFill=0;rounded=0;" edge="1" parent="1">
+          <mxGeometry y="3" relative="1" as="geometry">
+            <mxPoint x="80" y="160" as="sourcePoint" />
+            <mxPoint x="610" y="200" as="targetPoint" />
+            <Array as="points">
+              <mxPoint x="80" y="200" />
+              <mxPoint x="180" y="200" />
+              <mxPoint x="180" y="160" />
+              <mxPoint x="190" y="160" />
+              <mxPoint x="190" y="200" />
+              <mxPoint x="270" y="200" />
+              <mxPoint x="270" y="160" />
+              <mxPoint x="280" y="160" />
+              <mxPoint x="280" y="200" />
+              <mxPoint x="450" y="200" />
+              <mxPoint x="450" y="160" />
+              <mxPoint x="460" y="160" />
+              <mxPoint x="460" y="200" />
+              <mxPoint x="480" y="200" />
+              <mxPoint x="480" y="160" />
+              <mxPoint x="490" y="160" />
+              <mxPoint x="490" y="200" />
+              <mxPoint x="540" y="200" />
+              <mxPoint x="540" y="160" />
+              <mxPoint x="550" y="160" />
+              <mxPoint x="550" y="200" />
+            </Array>
+            <mxPoint as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="CW6RiXf8l8Z-WcTP8U0q-2" value="Instrument 1" style="text;html=1;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;" vertex="1" parent="1">
+          <mxGeometry x="70" y="110" width="100" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="CW6RiXf8l8Z-WcTP8U0q-3" value="emit" style="text;html=1;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;" vertex="1" parent="1">
+          <mxGeometry x="-10" y="140" width="100" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="CW6RiXf8l8Z-WcTP8U0q-4" value="wait" style="text;html=1;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;" vertex="1" parent="1">
+          <mxGeometry x="-10" y="180" width="100" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="CW6RiXf8l8Z-WcTP8U0q-11" value="" style="endArrow=none;html=1;endSize=12;startArrow=none;startSize=14;startFill=0;edgeStyle=orthogonalEdgeStyle;align=center;verticalAlign=bottom;endFill=0;rounded=0;" edge="1" parent="1">
+          <mxGeometry y="3" relative="1" as="geometry">
+            <mxPoint x="80" y="290" as="sourcePoint" />
+            <mxPoint x="610" y="330" as="targetPoint" />
+            <Array as="points">
+              <mxPoint x="80" y="330" />
+              <mxPoint x="140" y="330" />
+              <mxPoint x="140" y="290" />
+              <mxPoint x="150" y="290" />
+              <mxPoint x="150" y="330" />
+              <mxPoint x="230" y="330" />
+              <mxPoint x="230" y="290" />
+              <mxPoint x="240" y="290" />
+              <mxPoint x="240" y="330" />
+              <mxPoint x="340" y="330" />
+              <mxPoint x="340" y="290" />
+              <mxPoint x="350" y="290" />
+              <mxPoint x="350" y="330" />
+              <mxPoint x="410" y="330" />
+              <mxPoint x="410" y="290" />
+              <mxPoint x="420" y="290" />
+              <mxPoint x="420" y="330" />
+              <mxPoint x="540" y="330" />
+              <mxPoint x="540" y="290" />
+              <mxPoint x="550" y="290" />
+              <mxPoint x="550" y="330" />
+            </Array>
+            <mxPoint as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="CW6RiXf8l8Z-WcTP8U0q-12" value="Instrument 2" style="text;html=1;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;" vertex="1" parent="1">
+          <mxGeometry x="70" y="240" width="100" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="CW6RiXf8l8Z-WcTP8U0q-13" value="emit" style="text;html=1;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;" vertex="1" parent="1">
+          <mxGeometry x="-10" y="270" width="100" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="CW6RiXf8l8Z-WcTP8U0q-14" value="wait" style="text;html=1;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;" vertex="1" parent="1">
+          <mxGeometry x="-10" y="310" width="100" height="30" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>
