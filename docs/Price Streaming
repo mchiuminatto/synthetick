@@ -1,0 +1,15 @@
+# Price Streaming
+
+
+## Overview
+
+The price streaming feature generates tick data at random intervals defined under a set of constraints, following
+random walk process or eventually a biased random walk process.
+
+The set of constraints under which the tick price is emitted are the following:
+
+- average frequency [ticks/second]: The average amount of ticks to emit per second, considering a normal distribution.
+- frequency deviation [ticks/second]: Standard deviation for the ticks per second (given the normal distribution)
+
+
+

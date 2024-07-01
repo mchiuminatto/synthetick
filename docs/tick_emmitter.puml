@@ -1,0 +1,11 @@
+@startuml
+'https://plantuml.com/sequence-diagram
+
+autonumber
+
+Client -> Synthetick: emit(instrument, volatility, trend, first_value, density_mean, density_std, call_back_function)
+loop infinite
+Synthetick --> Client: call_back_function(timestamp, instrument, bid, ask)
+end
+
+@enduml
