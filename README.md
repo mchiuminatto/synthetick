@@ -131,11 +131,11 @@ This example generates a time series of tick data with a frequency of 1 socond, 
 
 from datetime import datetime
 import pandas as pd
-from synthetick.Synthetick import Ticks
+from synthetick.synthetick import Ticks
 
 DATE_FROM: datetime = pd.to_datetime("2023-01-01 00:00:00")
 DATE_TO: datetime = pd.to_datetime("2023-02-01 00:00:00")
-  
+
 tick_data_generator = Ticks(trend=0.01,
                             volatility_range=10,
                             spread_min=0.5,
@@ -150,7 +150,7 @@ tick_data_generator._compute_date_range(date_from=DATE_FROM,
 
 tick_data_generator.price_time_series.to_csv("test_tick_happy_path.csv", index_label="date-time")
 
-tick_data_generator.price_time_series[300:350][["bid", "ask"]].plot(figsize=(10,3), marker=".", cmap="PiYG")
+tick_data_generator.price_time_series[300:350][["bid", "ask"]].plot(figsize=(10, 3), marker=".", cmap="PiYG")
 ```
 
 ![](./tick-data.png)
@@ -160,7 +160,7 @@ tick_data_generator.price_time_series[300:350][["bid", "ask"]].plot(figsize=(10,
 ```python
 from datetime import datetime
 import pandas as pd
-from synthetick.Synthetick import OHLC
+from synthetick.synthetick import OHLC
 import mplfinance as mpf
 
 DATE_FROM: datetime = pd.to_datetime("2023-01-01 00:00:00")
@@ -178,9 +178,9 @@ ohlc: OHLC = OHLC(trend=0.0001,
 ohlc.produce(date_from=DATE_FROM, date_to=DATE_TO, init_value=1.300)
 ohlc.ohlc_time_series["bid"].to_csv("ohlc_bid_1h.csv", index_label="date-time")
 
-mc2 = mpf.make_marketcolors(up='blue',down='r')
-s2  = mpf.make_mpf_style(marketcolors=mc2)
-mpf.plot(ohlc.ohlc_time_series["bid"][200:400], type="candle", figsize=(15,4), style=s2)
+mc2 = mpf.make_marketcolors(up='blue', down='r')
+s2 = mpf.make_mpf_style(marketcolors=mc2)
+mpf.plot(ohlc.ohlc_time_series["bid"][200:400], type="candle", figsize=(15, 4), style=s2)
 ```
 
 ![](./ohlc_data.png)

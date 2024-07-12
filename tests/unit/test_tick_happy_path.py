@@ -1,6 +1,6 @@
 from datetime import datetime
 import pandas as pd
-from synthetick.Synthetick import Ticks
+from synthetick.synthetick import Ticks
 
 DATE_FROM: datetime = pd.to_datetime("2023-01-01 00:00:00")
 DATE_TO: datetime = pd.to_datetime("2023-02-01 00:00:00")

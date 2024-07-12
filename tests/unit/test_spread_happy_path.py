@@ -1,4 +1,4 @@
-from synthetick.Synthetick import Spread
+from synthetick.synthetick import Spread
 
 
 class TestSpreadHappyPath:

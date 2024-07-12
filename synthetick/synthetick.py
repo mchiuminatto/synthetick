@@ -5,7 +5,7 @@ https://numpy.org/doc/stable/reference/random/generated/numpy.random.Generator.u
 
 """
 
-from synthetick.PriceTimeSeries import PriceTimeSeries
+from synthetick.price_time_series import PriceTimeSeries
 from datetime import datetime
 import numpy as np
 import pandas as pd
