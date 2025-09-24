@@ -6,3 +6,5 @@ lint:
 reverse:
 	pyreverse -o png ./synthetick/
 
+test-historic:
+	coverage run -m pytest tests/test_tick_happy_path.py
