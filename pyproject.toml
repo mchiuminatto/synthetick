@@ -1,0 +1,32 @@
+[build-system]
+requires = ["hatchling==1.27.0", "hatch-vcs"]
+build-backend = "hatchling.build"
+
+[project]
+name = "synthetick"
+version = "0.2.0"
+authors = [
+    {name="Marcello Chiuminatto", email="mch@thequantick.net"},
+]
+description = "Synthetic price production utility for historical and live data (WIP)."
+readme = "README.md"
+requires-python = ">=3.11"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+]
+dependencies = ["asyncio==3.4.3",
+                "pandas==2.2.0",
+                "numpy==1.26.1",
+                "mplfinance==0.12.10b0",
+                "matplotlib==3.8.1",
+                "pyarrow>=13.0.0",
+    ]
+
+[tool.setuptools]
+packages = ["synthetick"]
+
+[project.urls]
+Homepage = "https://github.com/mchiuminatto/synthetick"
+Issues = "https://github.com/mchiuminatto/synthetick/issues"

@@ -1,0 +1,52 @@
+@startuml
+'https://plantuml.com/sequence-diagram
+
+autonumber
+
+Client -> Server: subscribe(instrument_1, volatility_1, trend_1, first_value_1, density_mean_1, density_std_1, call_back_1)
+Client -> Server: subscribe(instrument_2, volatility_2, trend_2, first_value_2, density_mean_2, density_std_2, call_back_2)
+Client -> Server: subscribe(instrument_3, volatility_3, trend_3, first_value_3, density_mean_3, density_std_3, call_back_3)
+Client -> Server: start_emmitting()
+Server -> Server: Create server loop
+Server -> Server: Spawn workers
+activate Server
+Server -> Worker_1: instrument_1, volatility_1, trend_1, first_value_1, density_mean_1, density_std_1
+activate Worker_1
+    loop infinite
+    Worker_1 --> Worker_1: emitting_loop()
+    end
+
+
+Server -> Worker_2: instrument_2, volatility_2, trend_2, first_value_2, density_mean_2, density_std_2
+
+activate Worker_2
+    loop infinite
+    Worker_2 --> Worker_2: emitting_loop()
+    end
+
+Server -> Worker_3: instrument_3, volatility_3, trend_3, first_value_3, density_mean_3, density_std_3
+
+activate Worker_3
+    loop infinite
+    Worker_3 --> Worker_3: emitting_loop()
+    end
+
+Server -> Server: Listening Loop
+activate Server
+
+loop infinite
+Server --> Server: listen_for_connections()
+Worker_1 --> Server: tick (instrument_1, bid_1, ask_1)
+Server -> Server:  CALLBACK_MAP[instrument_1]
+Server -> Client: callback_1(instrument_1, bid_1, ask_1)
+
+Worker_2 --> Server: tick (instrument_2, bid_2, ask_2)
+Server -> Server:  CALLBACK_MAP[instrument_2]
+Server -> Client: callback_1(instrument_2, bid_2, ask_2)
+
+Worker_3 --> Server: tick (instrument_3, bid_3, ask_3)
+Server -> Server:  CALLBACK_MAP[instrument_3]
+Server -> Client: callback_1(instrument_3, bid_3, ask_3)
+end
+
+@enduml

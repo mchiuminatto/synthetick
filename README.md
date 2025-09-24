@@ -26,7 +26,7 @@ $p_{n} = p_{n-1} + \Delta p_{n}$ (3)
 
 Where:
 
-$\Delta p_i$ Is the return or price change in for period $i$
+$\Delta p_i$ Is the return or price change for period $i$
 
 The general term is:
 
@@ -48,7 +48,7 @@ If $\Delta p_{i}$ is produced by an stochastic process, then the series has the 
 
 Making $\Delta p_{i} \approx N(\mu, \sigma)$ a normal distribution with mean $\mu$ and standard deviation $\sigma$
 
-If $\mu$ is 0, then the price generation process is an unbiased random walk, but as will be shown later, using $\mu \neq 0$ (biased random walk) it is possible to control the price trend: up (long or bull), range or down (short or hawkish)
+If $\mu$ is 0, then the price generation process is an unbiased random walk, but as will be shown later, using $\mu \neq 0$ (biased random walk) it is possible to control the price trend: up (long), range or down (short)
 
 With $\sigma$ it is possible to control price volatility.
 
@@ -60,13 +60,13 @@ To wrap up this section, the tick price generation process has three parameters:
 
 ### Bid, Ask, Spread
 
-The price of a financial asset comes in pairs: the price at wich you buy or Ask price, and the price at wich you sell or Bid. So for each new tick price, you need two values: Bid and Ask.
+The price of a financial asset comes in pairs: the price at wich you buy or Ask price, and the price at wich you sell or Bid price. So for each new tick price, you need two values: Bid and Ask.
 
 The difference between both is the Spread:
 
 $spread_i = Ask_i - Bid_i$
 
-So to generate tick price it is needed to generate two time series.
+So to generate tick price it is needed to generate two time series: bid and ask
 
 The library generates Bid parice first (As described in Core Model), then calculates Ask as a function of Bid and Spread:
 
@@ -84,9 +84,25 @@ $spread_{max}$ Maximum value for the spread
 
 ## Price Aggregations
 
-Price aggregations are data reductions by nean of applying functions on tick data for a period of time (candles or price bars), for a fix number of ticks (tick bars) or for a fix price change (renko bars).
+Price aggregations are data reductions calaculated as a result of  applying functions on tick data sampled as follows:
 
-So far only OHLC data is supported and is claculated using pandas library
+ - Fix period of time (candles bars or price bars), 
+ - Fix number of ticks (tick bars)
+ - Fix price change (renko bars, pip bars).
+
+So far only aggregatoions for fix periods of time are supported.
+
+
+
+All the aggregation produce a structure named OHLC, which stands for Open, High, Low, Close. These aggregations can be represented as vectors:
+
+$[open{-}time_i, close{-}time_i, open_i, high_i, low_i, close_i]$
+
+
+
+
+
+
 
 ```python
 tick.price_time_series["bid"].resample(<tick-data-time-series>).ohlc()
@@ -115,11 +131,11 @@ This example generates a time series of tick data with a frequency of 1 socond, 
 
 from datetime import datetime
 import pandas as pd
-from synthetick.Synthetick import Ticks
+from synthetick.synthetick import Ticks
 
 DATE_FROM: datetime = pd.to_datetime("2023-01-01 00:00:00")
 DATE_TO: datetime = pd.to_datetime("2023-02-01 00:00:00")
-  
+
 tick_data_generator = Ticks(trend=0.01,
                             volatility_range=10,
                             spread_min=0.5,
@@ -134,7 +150,7 @@ tick_data_generator._compute_date_range(date_from=DATE_FROM,
 
 tick_data_generator.price_time_series.to_csv("test_tick_happy_path.csv", index_label="date-time")
 
-tick_data_generator.price_time_series[300:350][["bid", "ask"]].plot(figsize=(10,3), marker=".", cmap="PiYG")
+tick_data_generator.price_time_series[300:350][["bid", "ask"]].plot(figsize=(10, 3), marker=".", cmap="PiYG")
 ```
 
 ![](./tick-data.png)
@@ -144,7 +160,7 @@ tick_data_generator.price_time_series[300:350][["bid", "ask"]].plot(figsize=(10,
 ```python
 from datetime import datetime
 import pandas as pd
-from synthetick.Synthetick import OHLC
+from synthetick.synthetick import OHLC
 import mplfinance as mpf
 
 DATE_FROM: datetime = pd.to_datetime("2023-01-01 00:00:00")
@@ -162,9 +178,9 @@ ohlc: OHLC = OHLC(trend=0.0001,
 ohlc.produce(date_from=DATE_FROM, date_to=DATE_TO, init_value=1.300)
 ohlc.ohlc_time_series["bid"].to_csv("ohlc_bid_1h.csv", index_label="date-time")
 
-mc2 = mpf.make_marketcolors(up='blue',down='r')
-s2  = mpf.make_mpf_style(marketcolors=mc2)
-mpf.plot(ohlc.ohlc_time_series["bid"][200:400], type="candle", figsize=(15,4), style=s2)
+mc2 = mpf.make_marketcolors(up='blue', down='r')
+s2 = mpf.make_mpf_style(marketcolors=mc2)
+mpf.plot(ohlc.ohlc_time_series["bid"][200:400], type="candle", figsize=(15, 4), style=s2)
 ```
 
 ![](./ohlc_data.png)
