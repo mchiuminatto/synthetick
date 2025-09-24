@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "synthetick"
-version = "0.2.0"
+version = "0.3.0"
 authors = [
     {name="Marcello Chiuminatto", email="mch@thequantick.net"},
 ]
@@ -18,9 +18,9 @@ classifiers = [
 ]
 dependencies = ["asyncio==3.4.3",
                 "pandas==2.2.0",
-                "numpy==1.26.1",
+                "numpy>=1.26",
                 "mplfinance==0.12.10b0",
-                "matplotlib==3.8.1",
+                "matplotlib>=3.8",
                 "pyarrow>=13.0.0",
     ]
 
