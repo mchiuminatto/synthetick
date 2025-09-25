@@ -22,7 +22,7 @@ class TestOHLCHappyPath:
                           time_frame="H")
 
         ohlc.produce(date_from=DATE_FROM, date_to=DATE_TO, init_value=1.300)
-        assert pd.infer_freq(ohlc.ohlc_time_series["bid"].index) == "H"
+        assert pd.infer_freq(ohlc.ohlc_time_series["bid"].index) == "h"
         assert ohlc.ohlc_time_series["bid"].index[0] == DATE_FROM
         assert ohlc.ohlc_time_series["bid"].index[-1] == DATE_TO
 

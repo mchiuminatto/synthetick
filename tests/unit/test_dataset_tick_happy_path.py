@@ -24,7 +24,7 @@ class TestSyntheticHappyPath:
 
         assert tick_data_generator.price_time_series.index[0] == pd.to_datetime(DATE_FROM)
         assert tick_data_generator.price_time_series.index[-1] == pd.to_datetime(DATE_TO)
-        assert pd.infer_freq(tick_data_generator.price_time_series.index) == "S"
+        assert pd.infer_freq(tick_data_generator.price_time_series.index) == "s"
 
     def test_gen_tick_with_compute(self):
         tick_data_generator = Ticks(trend=0.01,
@@ -42,7 +42,7 @@ class TestSyntheticHappyPath:
 
         assert tick_data_generator.price_time_series.index[0] == pd.to_datetime(DATE_FROM)
         assert tick_data_generator.price_time_series.index[-1] == pd.to_datetime(DATE_TO)
-        assert pd.infer_freq(tick_data_generator.price_time_series.index) == "S"
+        assert pd.infer_freq(tick_data_generator.price_time_series.index) == "s"
 
     def test_remove_weekends(self):
         tick_data_generator = Ticks(trend=0.01,
