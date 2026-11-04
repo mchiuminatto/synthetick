@@ -22,11 +22,11 @@
 
 ### Get historic tick price
 
-I need to generate an **historic data set** of **tick** price for an **instrument**, for a **date range**, **price range,**  with fixed or mixed **trend regimes** and with fixed or mixed **volatility regimes**. The consumers for this historic price dataset can be an API or a program that imports the library and executes the method to get the historic file.
+I need to generate an **historic data set** of **tick** price for an **instrument**, for a **date range**, **price range**,  **trend regime** and a **volatility regimes**. The consumers for this historic price dataset can be an API or a program that imports the library and executes the method to get the historic file.
 
 ### Get historic OHLC price
 
-I need to generate an **historic data set** of **OHLC** price for an **instrument**, for a **timeframe**, a **date range**, a **price range** with fixed or mixed **trend regimes** and with fixed or mixed **volatility regimes**. The consumers for this historic price dataset can be an API or a program that imports the library and executes the method to get the historic file.
+I need to generate an **historic data set** of **OHLC** price for an **instrument**, for a **timeframe**, a **date range**, a **price range**, a **trend regime** and a **volatility regime**. The consumers for this historic price dataset can be an API or a program that imports the library and executes the method to get the historic file.
 
 ### Get tick feed
 
@@ -82,9 +82,10 @@ config:
 title: Tick Range Aggregate
 ---
 classDiagram
+
 namespace TickRangeAggregate{
 
-  class TickRange <<aggregateroot>> {
+  class TickRange <<aggregate_root>> {
     -tick_range_id: classid
     -spec: TickRangeSpec
     +TickAggregate(spec: TickRangeSpec)
@@ -139,6 +140,68 @@ TickRangeSpec o-- Volatility
 TickRangeSpec o-- Trend
 ```
 
+### Domain Events
+
+
+```mermaid
+---
+config:
+  theme: default
+  look: classic
+  layout: elk
+title: Domain Events
+---
+classDiagram
+  direction TB
+  namespace TickRangeProducing{
+
+    class TickRangeRequested{
+      -timestamp: datetime
+      -tick_range_id: classid
+      -tick_range_spec: TickRangeSpec
+    }
+
+    class TickRangeStarted{
+      -timestamp: datetime
+      -tick_range_id: classid
+    }
+
+    class TickRangeProcessed{
+      timestamp: datetime
+      tick_range_id: classid
+      records_produced: int
+      pages_produced: int
+    }
+  }
+
+  namespace DataDelivery{
+    class TickRangeDataRequeted{
+      timestamp: datetime
+      tick_range_id: classid
+      page_offset: int
+      
+    }
+
+    class TickRangeDataDelivered{
+      timestamp: datetime
+      tick_range_id: classid
+      page_offset: int
+    }
+
+    class TickRangeDataExpired{
+      timestamp: datetime
+      tick_range_id: classid
+    }
+  }
+  TickRangeRequested --> TickRangeStarted
+  TickRangeStarted --> TickRangeProcessed
+  TickRangeDataRequeted --> TickRangeDataDelivered
+
+
+
+```
+
+
 ### Business Rules
 
 **Tick**
@@ -164,30 +227,25 @@ sequenceDiagram
     participant Core@{"type": "control", "alias": "core"} as Core
     participant DB@{"type": "database", "alias": "Status"} as Status
 
-    Client ->> API: /history/tick-range/?instrument=USDJPY&start=2025-01-01&end=2026-01-01&price_range_low=100&price_range_high=200&trend=0.001&volatiity=0.10&initial_bid=110
+    Client ->> API: /history/tick-range/?instrument=USDJPY&start=2025-01-01<br>&end=2026-01-01&price_range_low=100<br>&price_range_high=200&trend=0.001<br>&volatiity=0.10&initial_bid=110
     API ->> API: Authenticate
     API ->> Core: TickRange(TickRangeSpec)
     Core --|/ API: tick_range_id
     API --|/ Client: tick_range_id
-    API ->> DB: (tick_range_id, status)
+    Core ->> DB: insert(tick_range_id, status)
     Core ->> Core: TickRange.Produce()
-    Core ->> DB: (status, id)
+    Core ->> DB: update(tick_range_id, status)
     Client ->> API: history/tick-range/{tick_range_id}/status
-    API ->> DB: tick_range_id
+    API ->> DB: query(tick_range_id)
     API --|/ Client: tick_range_id, status
     Client ->> API: history/tick-range/{tick_range_id}/link
     API ->> DB: query(tick_range_id)
     DB -->> API: Link
-    API --> Client: Link
+    API -->> Client: Link
 
 
-
-
-    
-    
-    
-    
-    
 ```
+
+
 
 
