@@ -32,7 +32,7 @@ Out of scope for now:
 
 ### Get historic tick price
 
-I need to generate an **historic data set** of **tick** price for an **instrument**, for a **date range**, **price range**,  **trend** and a **volatility**. The consumers for this historic price dataset can be an API or a program that imports the library and executes the method to get the historic file. In this iteration the consumer is the API; the library is out of scope for now.
+I need to generate an **historic data set** of **tick** price for an **instrument**, for a **date range**, with an **initial bid**, a **price range**, a **trend**, a **volatility**, a **spread**, a **tick timing** and, optionally, a **seed** to repeat the same data. The consumers for this historic price dataset can be an API or a program that imports the library and executes the method to get the historic file. In this iteration the consumer is the API; the library is out of scope for now.
 
 ### Get historic OHLC price (out of scope for now)
 
@@ -40,7 +40,7 @@ I need to generate an **historic data set** of **OHLC** price for an **instrumen
 
 ### Get tick feed (out of scope for now)
 
-For my algorithmic trading infrastructure, I need to receive a realtime **tick** price feed, for an **instrument**, a **price range**, a **trend** and a **volatility**. Eventually I must be able to change the price range, the volatility and the trend. Each time a tick is produced I need to receive an event that carries as payload the tick attributes. Eventually I need to be able to receive the price feed at realtime, meaning at the pace the ticks are produced, or I can speed up the time pace so I can simulate, for example, one hour of tick data in just 1 minute.
+For my algorithmic trading infrastructure, I need to receive a realtime **tick** price feed, for an **instrument**, with an **initial bid**, a **price range**, a **trend**, a **volatility**, a **spread** and a **tick timing**. Eventually I must be able to change the price range, the volatility and the trend. Each time a tick is produced I need to receive an event that carries as payload the tick attributes. Eventually I need to be able to receive the price feed at realtime, meaning at the pace the ticks are produced, or I can speed up the time pace so I can simulate, for example, one hour of tick data in just 1 minute.
 
 Also I need to change at any time the parameters that determine how the tick data is generated: **price range**, **trend**, **volatility**, along with **price feed pace**.
 
@@ -98,7 +98,7 @@ namespace TickRangeAggregate{
   class TickRange <<aggregate_root>> {
     -tick_range_id: classid
     -spec: TickRangeSpec
-    +TickAggregate(spec: TickRangeSpec)
+    +TickRange(spec: TickRangeSpec)
     +produce() ProductionResult
   }
 
@@ -114,7 +114,7 @@ namespace TickRangeAggregate{
     - initial_bid: Decimal
     - instrument: str
 
-    +TimeRangeSpec(price_range, time_range, trend, volatility, spread, tick_timing, seed, initial_bid, instrument)
+    +TickRangeSpec(price_range, time_range, trend, volatility, spread, tick_timing, seed, initial_bid, instrument)
   }
 
   class TimeRange{
@@ -174,7 +174,7 @@ TickRangeSpec o-- TickTiming
 
 The ticks are not part of the aggregate: `produce()` writes them as records in Parquet objects in MinIO (see "Output timeseries structure") and returns only the counts (`records_produced` and `objects_produced`).
 
-### ThDomain Events
+### Domain Events
 
 
 ```mermaid
@@ -215,7 +215,7 @@ classDiagram
   }
 
   namespace DataDelivery{
-    class TickRangeDataRequeted{
+    class TickRangeDataRequested{
       timestamp: datetime
       tick_range_id: classid
       page_size: int
@@ -238,7 +238,7 @@ classDiagram
   TickRangeRequested --> TickRangeStarted
   TickRangeStarted --> TickRangeProcessed
   TickRangeStarted --> TickRangeFailed
-  TickRangeDataRequeted --> TickRangeDataDelivered
+  TickRangeDataRequested --> TickRangeDataDelivered
 
 
 
@@ -252,7 +252,7 @@ How the price of each tick is produced (the random walk, its drift and volatilit
 - Decided: this implementation uses the **arithmetic random walk** with drift (a biased random walk). Geometric Brownian Motion (GBM) is documented in the reference document and will be explored later. See "Common foundation: random walk, GBM and drift", subsection "Arithmetic random walk".
 - In the arithmetic walk, the price change between two ticks is normal, with mean equal to the drift per second times the gap between the ticks, and standard deviation equal to the volatility per square-root second times the square root of the gap. The gap is the time between the two ticks, in seconds. Drift and volatility are in price units, not percentages.
 - Decided: `Trend` is the drift of the walk and `Volatility` is its standard deviation, both in price units (drift per second, volatility per square-root second). Each has a single value, `Trend.drift` and `Volatility.sigma`, because the arithmetic walk uses one drift and one volatility.
-- Because the arithmetic walk is not bounded (it can drift out of the price range, or below zero), the price range rule in Business Rules, which resets the bid to `initial_bid`, keeps the bid inside the range (and above zero, because `price_min` must be greater than zero). The ask of a reset tick can exceed `price_max`, see Business Rules.
+- Because the arithmetic walk is not bounded (it can drift out of the price range, or below zero), the price range rule in Business Rules, which resets the bid to `initial_bid`, keeps the bid inside the range (and above zero, because `min_price` must be greater than zero). The ask of a reset tick can exceed `max_price`, see Business Rules.
 - The reference document also describes how tick timestamps are generated (section "Tick timing", subsection "Random number of ticks per time unit"): a random number of ticks is drawn for each time unit from a probability distribution (Poisson, negative binomial or a fixed number), and the ticks are placed at random positions inside the time unit.
 - Decided: the number of ticks per time unit follows a negative binomial distribution, with a mean number of ticks per time unit and a dispersion parameter (Poisson is its limiting case).
 - The number of ticks in a date range is random, so `records_produced` is only known after the range is produced; before that only its expected value (mean ticks per time unit times the number of time units) is known.
@@ -271,7 +271,7 @@ How the price of each tick is produced (the random walk, its drift and volatilit
 | `spread.mean`, `spread.stdev` | price | Normal distribution the spread of each tick is sampled from. |
 | `tick_timing.time_unit_seconds` | seconds | Length of the time unit. |
 | `tick_timing.mean_ticks` | ticks per time unit | Mean of the number of ticks of a time unit. |
-| `tick_timing.dispersion` | number greater than 0 | Dispersion of the negative binomial; the larger it is, the closer the counts are to Poisson. |
+| `tick_timing.dispersion` | number greater than 0 | Dispersion of the negative binomial. The variance of the number of ticks of a time unit is `mean_ticks + mean_ticks² / dispersion`, so the larger the dispersion, the closer the counts are to Poisson (variance equal to the mean). See "Random number of ticks per time unit" in [synthetic-price-generation.md](synthetic-price-generation.md). |
 | `tick_timing.min_ticks`, `tick_timing.max_ticks` | ticks, optional | Bounds of the number of ticks of a time unit; a count outside them is redrawn. |
 | `seed` | integer | Seed of the random number generator. With the same implementation, the same spec gives the same series. If the client does not send it, the service generates it and stores it with the spec. |
 
@@ -314,7 +314,7 @@ sequenceDiagram
     participant DB@{"type": "database", "alias": "Status"} as Status
     participant Storage@{"type": "database", "alias": "Storage"} as MinIO
 
-    Client ->> API: /history/tick-range/?instrument=USDJPY&start=2025-01-01<br>&end=2025-01-02&price_range_low=100&price_range_high=200<br>&initial_bid=110&trend_drift=0.0000001&volatility_sigma=0.002<br>&spread_mean=0.02&spread_stdev=0.005<br>&time_unit_seconds=1&mean_ticks=10&dispersion=4<br>&seed=42
+    Client ->> API: /history/tick-range/?instrument=USDJPY&date_from=2025-01-01<br>&date_to=2025-01-02&min_price=100&max_price=200<br>&initial_bid=110&trend_drift=0.0000001&volatility_sigma=0.002<br>&spread_mean=0.02&spread_stdev=0.005<br>&time_unit_seconds=1&mean_ticks=10&dispersion=4<br>&seed=42
     API ->> API: Authenticate
     API ->> Core: TickRange(TickRangeSpec)
     Core --|/ API: tick_range_id
@@ -402,7 +402,7 @@ CREATE INDEX ix_domain_event_aggregate_time
     ON domain_event (aggregate_id, recorded_at);
 
 -- Query by event type over time
-CREATE INDEX ix_domain_event_type_occurred
+CREATE INDEX ix_domain_event_type_recorded
     ON domain_event (event_type, recorded_at);
 
 -- Outbox relay: find events not yet published
@@ -425,7 +425,7 @@ INSERT INTO domain_event
 VALUES
     (gen_random_uuid(), 'TickRangeProcessed', 'TickRange',
      '5b0f3c1e-9d7a-4c55-8a53-0d6d2f1c7e11', 3,
-     '{"records_produced": 1250000, "objects_produced": 13}',
+     '{"records_produced": 864000, "objects_produced": 9}',
      '5b0f3c1e-9d7a-4c55-8a53-0d6d2f1c7e11');
 ```
 
@@ -448,10 +448,10 @@ Design notes:
 - Parquet row groups are written with 10,000 rows, so the API can read part of an object (for a page smaller than the object) without loading all of it.
 - The consumer downloads the data through an API endpoint, one page per request (for example `GET history/tick-range/{tick_range_id}/data?page_size=S&page_offset=N`). MinIO is internal: the API reads the ticks from the Parquet objects and returns them, so the consumer needs no access to MinIO and no link is stored.
 - `page_size` is chosen by the client, with a maximum of 100,000 ticks per page, equal to the initial `ticks_per_object` (a larger value, or a value below 1, is rejected with a 400 error). Default: 10,000. `page_offset` is the zero-based page number for that `page_size`, so page `N` holds the ticks in positions `N × page_size` to `(N + 1) × page_size − 1`. The client must keep the same `page_size` for all requests of one download, because changing it changes which ticks a given `page_offset` refers to.
-- The API maps the tick positions to storage objects: object `floor(position / ticks_per_object)`, and the row group inside it. A page can span two objects when `page_size` does not divide `ticks_per_object`; the API then reads from both and joins the result. `ticks_per_object` should be a multiple of 10,000 so that the default page size never spans objects. With `page_size` equal to `ticks_per_object` (100,000 initially), page `N` is exactly object `N`, which is the cheapest read: one object, no slicing. While `ticks_per_object` is not smaller than the maximum page size, a page spans at most two objects.
-- The response carries `records_produced` and the total number of pages for the requested `page_size` (`ceil(records_produced / page_size)`), so the consumer knows when to stop, and the `next` offset, which is empty on the last page. A `page_offset` outside that range returns 404. A range in `REQUESTED`, `STARTED` or `FAILED` returns 409 (the response carries the status, and the `failure_reason` when it is `FAILED`). A range in `EXPIRED`, or whose `expires_at` has passed, returns 410.
+- The API maps the tick positions to storage objects: object `floor(position / ticks_per_object)`, and the row group inside it. A page can span two objects when `page_size` does not divide `ticks_per_object`; the API then reads from both and joins the result. `ticks_per_object` must be a multiple of 10,000 so that the default page size never spans objects. With `page_size` equal to `ticks_per_object` (100,000 initially), page `N` is exactly object `N`, which is the cheapest read: one object, no slicing. While `ticks_per_object` is not smaller than the maximum page size, a page spans at most two objects.
+- The response carries `records_produced` and the total number of pages for the requested `page_size` (`ceil(records_produced / page_size)`), so the consumer knows when to stop, and the `next_page_offset`, which is empty on the last page. A `page_offset` outside that range returns 404. A range in `REQUESTED`, `STARTED` or `FAILED` returns 409 (the response carries the status, and the `failure_reason` when it is `FAILED`). A range in `EXPIRED`, or whose `expires_at` has passed, returns 410.
 - Retention and expiry: the retention period is a configuration value, in whole days. The objects of a tick range expire through a MinIO lifecycle rule (TTL) with that period, so the application does not delete them. `expires_at` is set to the time the range becomes `PROCESSED` plus the retention period. MinIO applies the TTL by object age, in whole days and when its lifecycle scan runs, so the objects can disappear a little before or after `expires_at`; the API treats a range as expired (410) once `expires_at` has passed, or when its objects are missing. A periodic job marks the `PROCESSED` ranges whose `expires_at` has passed as `EXPIRED` and emits `TickRangeDataExpired`. The `tick_range` row and its events are kept.
-- Writing to MinIO and to the database cannot be one transaction. Write the pages first and then, in one database transaction, mark the range `PROCESSED` and insert `TickRangeProcessed`. If the process fails in between, the result is orphan objects, which the MinIO TTL removes after the retention period, like any other object. It is never a `PROCESSED` range without data.
+- Writing to MinIO and to the database cannot be one transaction. Write the objects first and then, in one database transaction, mark the range `PROCESSED` and insert `TickRangeProcessed`. If the process fails in between, the result is orphan objects, which the MinIO TTL removes after the retention period, like any other object. It is never a `PROCESSED` range without data.
 - The ticks (columns `timestamp`, `bid` and `ask`) are not stored in the database. Their columns and types are defined in "Output timeseries structure" below. Ticks are written in time order, and each object holds a fixed number of ticks except the last one.
 
 ```sql
@@ -468,8 +468,8 @@ CREATE TABLE tick_range (
     initial_bid        NUMERIC(18,8)      NOT NULL,
 
     -- PriceRange
-    price_min          NUMERIC(18,8)      NOT NULL,
-    price_max          NUMERIC(18,8)      NOT NULL,
+    min_price          NUMERIC(18,8)      NOT NULL,
+    max_price          NUMERIC(18,8)      NOT NULL,
 
     -- TimeRange
     date_from          TIMESTAMPTZ        NOT NULL,
@@ -513,9 +513,9 @@ CREATE TABLE tick_range (
 
     CONSTRAINT pk_tick_range PRIMARY KEY (tick_range_id),
     CONSTRAINT ck_tick_range_version      CHECK (version > 0),
-    CONSTRAINT ck_tick_range_price_range  CHECK (price_min < price_max),
-    CONSTRAINT ck_tick_range_price_min    CHECK (price_min > 0),
-    CONSTRAINT ck_tick_range_initial_bid  CHECK (initial_bid BETWEEN price_min AND price_max),
+    CONSTRAINT ck_tick_range_price_range  CHECK (min_price < max_price),
+    CONSTRAINT ck_tick_range_min_price    CHECK (min_price > 0),
+    CONSTRAINT ck_tick_range_initial_bid  CHECK (initial_bid BETWEEN min_price AND max_price),
     CONSTRAINT ck_tick_range_time_range   CHECK (date_from < date_to),
     CONSTRAINT ck_tick_range_volatility   CHECK (volatility_sigma >= 0),
     CONSTRAINT ck_tick_range_spread       CHECK (spread_mean >= 0 AND spread_stdev >= 0),
@@ -544,11 +544,11 @@ CREATE INDEX ix_tick_range_expiry
 Decisions and open points:
 
 - **Where the ticks live (decided).** In MinIO, not in the database. The aggregate in the database holds only the metadata and the pointer to the objects.
-- **Data format (decided).** Parquet. The `data_format` column was removed because the format is fixed. If another format is ever needed, add the column back with a default of `'parquet'`.
+- **Data format (decided).** Parquet. The format is always Parquet, so the table has no format column. If another format is ever needed, add a column with a default of `'parquet'`.
 - **Download (decided).** Through an API endpoint with pagination by `page_size` and `page_offset`, as originally planned.
 - **Page size (decided).** Chosen by the client, maximum 100,000 ticks per page, matching the initial `ticks_per_object`. A `page_size` above the maximum (or below 1) is rejected with a 400 error. Both values are configuration and can be tuned independently; if `ticks_per_object` is lowered below the maximum page size, a page may span more than two objects.
 - **Objects size (decided, to be tuned).** `ticks_per_object` starts at 100,000 and will be fine-tuned along the way. It is a configuration value and must be a multiple of 10,000. Larger objects mean fewer files in MinIO, smaller ones mean less data to write per file. Because each range stores its own `ticks_per_object`, changing the configuration only affects new ranges; existing ones are still read correctly.
-- **Event page semantics (decided).** The `page_offset` in `TickRangeDataRequested` and `TickRangeDataDelivered` is only meaningful together with the `page_size` used, so both should be in the event payload. `TickRangeProcessed` now reports `records_produced` and `objects_produced` instead of `pages_produced`, since the number of pages depends on the client's page size.
+- **Event page semantics (decided).** The `page_offset` in `TickRangeDataRequested` and `TickRangeDataDelivered` is only meaningful together with the `page_size` used, so both should be in the event payload. `TickRangeProcessed` reports `records_produced` and `objects_produced`, not a number of pages, since the number of pages depends on the client's page size.
 - **Delivery events volume (decided).** Only the first request and the last delivery of a download are recorded, not every page, so the number of events per download is constant however many pages a client reads.
   - `TickRangeDataRequested` is recorded when a request arrives with `page_offset = 0`.
   - `TickRangeDataDelivered` is recorded when the response sent has an empty `next_page_offset`, meaning the last page was delivered.
@@ -559,7 +559,7 @@ Decisions and open points:
 - **Scope (decided).** This iteration covers the historic tick range through the API. OHLC, the real-time feeds and the library as a direct consumer are out of scope for now (see "Scope").
 - **Failure (decided).** A production that fails moves the range to `FAILED`, with the reason in `failure_reason` and a `TickRangeFailed` event. `/status` returns the status and the reason, and `/data` returns 409.
 - **Retention and expiry (decided).** The retention period is configuration; MinIO deletes the objects with a lifecycle rule (TTL) of that length. `expires_at` is the time the range becomes `PROCESSED` plus the retention period. A periodic job marks expired ranges `EXPIRED` and emits `TickRangeDataExpired`.
-- **Prices (decided).** `price_min` must be greater than zero, so the bid never goes below zero.
+- **Prices (decided).** `min_price` must be greater than zero, so the bid never goes below zero.
 - **Generation parameters (decided).** `TickRangeSpec` holds all the parameters needed to generate the ticks with the arithmetic random walk (see "Price generation process"): trend drift, volatility sigma, spread mean and standard deviation, tick timing (time unit, mean ticks, dispersion, optional bounds) and a seed. `date_to` is required, because a series needs an end.
 - **OHLC (out of scope for now).** `OHLCRange` is not modelled as an aggregate, and this data model covers only `TickRange`.
 
