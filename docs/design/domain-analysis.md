@@ -7,12 +7,13 @@
 - **Instrument**: Represents a financial instrument and its properties.
 - **OHLC**: It is an aggregation of ticks during a fixed period of time. Some OHLC aggregations do not use time but ticks or pips (price variation), but those are out of the scope for now. An **OHLC** entity is defined by **timeframe** and the **instrument** the prices represent, and is represented by the **Open**, **High**, **Low**, **Close** prices  the **Volume** of ticks for the period.
 - **Timeframe**:  Represents the time period that tick data is grouped in: an OHLC period. For example m5 (five minutes), H1 (one hour) and so on.
-- **Trend Regime**: Defines the drift from the puerly random walk price generation process. Is defind by a mean and a standard deviation. If the mean is zero, the process is  a pure rando walk. If the mean is positive the trend is lean upward or if the mean is negative, the tredn is leaned downward.
-- **Volatility**: Determines the magnitude of the range values. It is defined by a mean and a standard deviation.
-- **Spread**: The difference between the ask and the bid of a tick. In a price range it is defined by a mean and a standard deviation, and it is sampled for each tick.
+- **Trend Regime**: Defines the drift of the arithmetic random walk that produces the tick prices: the expected price change per second, in price units. If the drift is zero, the process is a pure random walk. If it is positive the trend leans upward, and if it is negative the trend leans downward.
+- **Volatility**: Determines the magnitude of the random price changes. It is the standard deviation of the price change over one second, in price units per square-root second.
+- **Spread**: The difference between the ask and the bid of a tick. It is sampled for each tick from a normal distribution defined by a mean and a standard deviation, in price units; a sampled value below zero is set to zero.
+- **Tick timing**: Defines when the ticks of a tick range happen. The time is split in time units of a fixed length. For each time unit a random number of ticks is drawn from a negative binomial distribution, defined by its mean and its dispersion (optionally limited to a minimum and a maximum), and the ticks are placed at random moments inside the time unit.
 - **Date range**: Is the period a price dataset must cover. It is defined by a start date and an end date.
 - **OHLC range**: Is a set of OHLC aggregations that follows a strict regular time sequence order. Is driven by a *price range*, *volatility* and *trend*.
-- **Tick range**: Is a set of ticks, that follows an irregular time sequence order. Is driven by *price range*, a *volatility* and a *trend*.
+- **Tick range**: Is a set of ticks, that follows an irregular time sequence order. Is driven by a *price range*, a *volatility*, a *trend*, a *spread* and a *tick timing*.
 - **Random walk**: Underlying process producing tick price. The theory and the models per asset class are described in [Synthetic Price Generation with Random Walks](synthetic-price-generation.md).
 - **Feed pace**: The speed at which a price feed is generated: realtime (1x), twice the speed (2x) and so on.
 - **Price Range**: Is defined by a minimum and maximum price values, that constraints a Tick or an OHLC ranges.
@@ -98,30 +99,38 @@ namespace TickRangeAggregate{
     - trend: Trend
     - volatility: Volatility
     - spread: Spread
+    - tick_timing: TickTiming
+    - seed: int
     - initial_bid: Decimal
     - instrument: str
 
-    +TimeRangeSpec(price_range, time_range, trend, volatility, spread, intial_bid, instrument)
+    +TimeRangeSpec(price_range, time_range, trend, volatility, spread, tick_timing, seed, initial_bid, instrument)
   }
 
   class TimeRange{
     +date_from: datetime
-    +date_to: datetime | None
+    +date_to: datetime
   }
 
   class Volatility{
-    + mean: float
-    + stdev: float
+    + sigma: float
   }
 
   class Trend{
-    + mean: float
-    + stdev: float
+    + drift: float
   }
 
   class Spread{
     + mean: float
     + stdev: float
+  }
+
+  class TickTiming{
+    + time_unit_seconds: float
+    + mean_ticks: float
+    + dispersion: float
+    + min_ticks: int | None
+    + max_ticks: int | None
   }
 
   class PriceRange{
@@ -144,6 +153,7 @@ TickRangeSpec o-- TimeRange
 TickRangeSpec o-- Volatility
 TickRangeSpec o-- Trend
 TickRangeSpec o-- Spread
+TickRangeSpec o-- TickTiming
 ```
 
 ### ThDomain Events
@@ -214,16 +224,52 @@ classDiagram
 
 How the price of each tick is produced (the random walk, its drift and volatility, and the model chosen per asset class) is specified in [Synthetic Price Generation with Random Walks](synthetic-price-generation.md). That document is the reference for the generator; this document does not repeat it.
 
-- The generator is a random walk on log prices (discretised Geometric Brownian Motion), with a drift term that makes it a biased random walk. See "Common foundation: random walk, GBM and drift" and, for currency pairs such as the `USDJPY` example, the "Forex" section.
-- `Trend` is the drift (the bias) and `Volatility` is the size of the random step. The exact mapping from their `mean` and `stdev` to the parameters of the model in the reference document is still to be defined.
-- The reference document covers the price step only. It does not define how tick timestamps are generated (the arrival process) or how many ticks fall in a date range. That is still open and needed to know `records_produced` in advance.
+- Decided: this implementation uses the **arithmetic random walk** with drift (a biased random walk). Geometric Brownian Motion (GBM) is documented in the reference document and will be explored later. See "Common foundation: random walk, GBM and drift", subsection "Arithmetic random walk".
+- In the arithmetic walk, the price change between two ticks is normal, with mean equal to the drift per second times the gap between the ticks, and standard deviation equal to the volatility per square-root second times the square root of the gap. The gap is the time between the two ticks, in seconds. Drift and volatility are in price units, not percentages.
+- Decided: `Trend` is the drift of the walk and `Volatility` is its standard deviation, both in price units (drift per second, volatility per square-root second). Each has a single value, `Trend.drift` and `Volatility.sigma`, because the arithmetic walk uses one drift and one volatility.
+- Because the arithmetic walk is not bounded (it can drift out of the price range, or below zero), the price range rule in Business Rules, which resets the bid to `initial_bid`, is what keeps the prices inside the range.
+- The reference document also describes how tick timestamps are generated (section "Tick timing", subsection "Random number of ticks per time unit"): a random number of ticks is drawn for each time unit from a probability distribution (Poisson, negative binomial or a fixed number), and the ticks are placed at random positions inside the time unit.
+- Decided: the number of ticks per time unit follows a negative binomial distribution, with a mean number of ticks per time unit and a dispersion parameter (Poisson is its limiting case).
+- The number of ticks in a date range is random, so `records_produced` is only known after the range is produced; before that only its expected value (mean ticks per time unit times the number of time units) is known.
+
+**Parameters of the generator.** `TickRangeSpec` holds everything needed to generate the ticks with the arithmetic random walk:
+
+| Spec field | Unit | Used for |
+| --- | --- | --- |
+| `instrument` | text | Label of the instrument. It does not change the generation. |
+| `time_range.date_from` | UTC datetime | Start of the series. The time of a tick is `date_from` plus the seconds elapsed since the start. |
+| `time_range.date_to` | UTC datetime | End of the series. Ticks that fall after it are discarded. |
+| `initial_bid` | price | Bid at `date_from` (the start of the walk) and the value the bid is reset to. |
+| `price_range.min_price`, `price_range.max_price` | price | Limits used by the reset rule. |
+| `trend.drift` | price per second | Drift of the walk. |
+| `volatility.sigma` | price per square-root second | Standard deviation of the price change over one second. |
+| `spread.mean`, `spread.stdev` | price | Normal distribution the spread of each tick is sampled from. |
+| `tick_timing.time_unit_seconds` | seconds | Length of the time unit. |
+| `tick_timing.mean_ticks` | ticks per time unit | Mean of the number of ticks of a time unit. |
+| `tick_timing.dispersion` | number greater than 0 | Dispersion of the negative binomial; the larger it is, the closer the counts are to Poisson. |
+| `tick_timing.min_ticks`, `tick_timing.max_ticks` | ticks, optional | Bounds of the number of ticks of a time unit; a count outside them is redrawn. |
+| `seed` | integer | Seed of the random number generator. With the same implementation, the same spec gives the same series. If the client does not send it, the service generates it and stores it with the spec. |
+
+Not part of the spec: the number of ticks per storage object (`ticks_per_object`, a service setting), the market calendar (the series runs continuously, without weekends or holidays) and the tick volume.
+
+**Generation steps.**
+
+1. Split the period from `date_from` to `date_to` in time units of `time_unit_seconds` seconds.
+2. For each time unit, draw the number of ticks from the negative binomial distribution with mean `mean_ticks` and dispersion `dispersion` (redrawing it while it is outside `min_ticks` and `max_ticks`, when they are given).
+3. Place that number of ticks at random moments inside the time unit and sort them. Put the time units one after another and discard the ticks after `date_to`. The gap of a tick is the time since the previous tick, in seconds; the first gap is measured from `date_from`.
+4. Start the walk with the bid equal to `initial_bid` at `date_from`. For each tick, add to the bid a normal random change with mean `trend.drift` times the gap and standard deviation `volatility.sigma` times the square root of the gap.
+5. Sample the spread of the tick from the normal distribution with `spread.mean` and `spread.stdev` (setting it to zero if negative), and compute `ask = bid + spread`.
+6. Apply the price range rule of Business Rules to the tick: if it is outside the price range, the bid is reset to `initial_bid`, and the walk continues from there.
+7. Round `bid` and `ask` to 8 decimals and write the ticks in time order, `ticks_per_object` per object, in the structure defined in "Output timeseries structure".
+
+All random numbers come from one generator initialised with `seed`.
 
 ### Business Rules
 
 **Tick**
 
 - ask = bid + spread
-- spread is sampled for each tick from the `Spread` distribution of the `TickRangeSpec` (`mean`, `stdev`). A spread cannot be negative, so a sampled value below zero is set to zero.
+- spread is sampled for each tick from a normal distribution with the `mean` and `stdev` of the `Spread` of the `TickRangeSpec`. A spread cannot be negative, so a sampled value below zero is set to zero.
 - if bid < price_range.min_price or ask > price_range.max_price, then bid = initial_bid (the price is reset, not reflected back into the range) and ask = bid + spread. The spread is random and cannot be known in advance, so the reset tick is exempt from this validation: if `initial_bid + spread` exceeds `price_range.max_price`, the tick is kept as is and the rule is not applied again to it. The rule applies again from the next tick.
 
 
@@ -243,7 +289,7 @@ sequenceDiagram
     participant DB@{"type": "database", "alias": "Status"} as Status
     participant Storage@{"type": "database", "alias": "Storage"} as MinIO
 
-    Client ->> API: /history/tick-range/?instrument=USDJPY&start=2025-01-01<br>&end=2026-01-01&price_range_low=100<br>&price_range_high=200&trend=0.001<br>&volatility=0.10&spread=0.02&initial_bid=110
+    Client ->> API: /history/tick-range/?instrument=USDJPY&start=2025-01-01<br>&end=2025-01-02&price_range_low=100&price_range_high=200<br>&initial_bid=110&trend_drift=0.0000001&volatility_sigma=0.002<br>&spread_mean=0.02&spread_stdev=0.005<br>&time_unit_seconds=1&mean_ticks=10&dispersion=4<br>&seed=42
     API ->> API: Authenticate
     API ->> Core: TickRange(TickRangeSpec)
     Core --|/ API: tick_range_id
@@ -355,14 +401,14 @@ The database engine is PostgreSQL. The DDL relies on `UUID`, `JSONB`, `TIMESTAMP
 
 Only the `TickRange` aggregate exists so far, so the schema covers it. The generated ticks are not stored in the database: they are written to MinIO (S3-compatible object storage) as Parquet objects. The database holds a single table:
 
-- `tick_range`: the aggregate root, with the `TickRangeSpec` value objects (`PriceRange`, `TimeRange`, `Trend`, `Volatility`, `Spread`) flattened into columns, because value objects have no identity of their own. It also holds the processing status that the API reads when the client polls `/status`, and the location of the tick data in MinIO.
+- `tick_range`: the aggregate root, with the `TickRangeSpec` value objects (`PriceRange`, `TimeRange`, `Trend`, `Volatility`, `Spread`, `TickTiming`) flattened into columns, because value objects have no identity of their own. It also holds the processing status that the API reads when the client polls `/status`, and the location of the tick data in MinIO.
 
 Design notes:
 
 - `tick_range_id` is generated by the domain (UUID) so it can be returned to the client before anything is persisted, as in the sequence diagram.
 - `version` is incremented on every update of the root and is aligned with `domain_event.aggregate_version`, which gives optimistic concurrency. The aggregate row and its new events are written in the same transaction.
 - `status` is a projection of the latest event: `REQUESTED` → `STARTED` → `PROCESSED` → `EXPIRED`. The events remain the source of truth for history.
-- Prices use `NUMERIC`, never floating point, because the domain defines them as `Decimal`. The `Trend`, `Volatility` and `Spread` parameters are statistical and use `DOUBLE PRECISION`.
+- Prices use `NUMERIC`, never floating point, because the domain defines them as `Decimal`. The `Trend`, `Volatility`, `Spread` and `TickTiming` parameters are statistical and use `DOUBLE PRECISION` (the optional bounds of the tick count are integers). Trend, volatility and spread are in price units.
 - Tick data lives in MinIO as Parquet files, called storage objects, under `<storage_prefix>part-<n>.parquet` (for example `tick-range/5b0f3c1e-.../part-000001.parquet`). The format is always Parquet, so it is not stored. `storage_bucket` and `storage_prefix` locate the objects, and `objects_produced` tells how many exist. Each object holds `ticks_per_object` ticks (the last one holds the remainder). This is a storage setting chosen by the service when the range is produced; it is independent of the page size that clients ask for. No page table is needed.
 - Parquet row groups are written with 10,000 rows, so the API can read part of an object (for a page smaller than the object) without loading all of it.
 - The consumer downloads the data through an API endpoint, one page per request (for example `GET history/tick-range/{tick_range_id}/data?page_size=S&page_offset=N`). MinIO is internal: the API reads the ticks from the Parquet objects and returns them, so the consumer needs no access to MinIO and no link is stored.
@@ -371,7 +417,7 @@ Design notes:
 - The response carries `records_produced` and the total number of pages for the requested `page_size` (`ceil(records_produced / page_size)`), so the consumer knows when to stop, and the `next` offset, which is empty on the last page. A `page_offset` outside that range returns 404, and a range that is not `PROCESSED` returns 409 (not ready) or 410 (`EXPIRED`).
 - Expiry (`TickRangeDataExpired`) deletes the objects under the prefix and sets `status = 'EXPIRED'`. The `tick_range` row and its events are kept. A MinIO lifecycle rule on the prefix can act as a safety net, but the application should remain the one that emits the event.
 - Writing to MinIO and to the database cannot be one transaction. Write the pages first and then, in one database transaction, mark the range `PROCESSED` and insert `TickRangeProcessed`. If the process fails in between, the result is orphan objects, which a cleanup job can remove by finding prefixes whose range is not `PROCESSED`. It is never a `PROCESSED` range without data.
-- `ask` is not stored in the database. Each Parquet page file carries the columns `timestamp` (timestamp, UTC), `bid` and `ask` (decimal, same precision as the domain `Decimal`), following the `Tick` definition. Ticks are written in time order, and each object holds a fixed number of ticks except the last one.
+- The ticks (columns `timestamp`, `bid` and `ask`) are not stored in the database. Their columns and types are defined in "Output timeseries structure" below. Ticks are written in time order, and each object holds a fixed number of ticks except the last one.
 
 ```sql
 CREATE TYPE tick_range_status AS ENUM
@@ -392,19 +438,27 @@ CREATE TABLE tick_range (
 
     -- TimeRange
     date_from          TIMESTAMPTZ        NOT NULL,
-    date_to            TIMESTAMPTZ        NULL,       -- NULL = open ended
+    date_to            TIMESTAMPTZ        NOT NULL,
 
-    -- Trend
-    trend_mean         DOUBLE PRECISION   NOT NULL,
-    trend_stdev        DOUBLE PRECISION   NOT NULL,
+    -- Trend (price units per second)
+    trend_drift        DOUBLE PRECISION   NOT NULL,
 
-    -- Volatility
-    volatility_mean    DOUBLE PRECISION   NOT NULL,
-    volatility_stdev   DOUBLE PRECISION   NOT NULL,
+    -- Volatility (price units per square-root second)
+    volatility_sigma   DOUBLE PRECISION   NOT NULL,
 
-    -- Spread
+    -- Spread (price units)
     spread_mean        DOUBLE PRECISION   NOT NULL,
     spread_stdev       DOUBLE PRECISION   NOT NULL,
+
+    -- TickTiming
+    time_unit_seconds  DOUBLE PRECISION   NOT NULL,   -- length of the time unit
+    mean_ticks         DOUBLE PRECISION   NOT NULL,   -- mean number of ticks per time unit
+    dispersion         DOUBLE PRECISION   NOT NULL,   -- negative binomial dispersion
+    min_ticks          INTEGER            NULL,       -- optional lower bound of ticks per time unit
+    max_ticks          INTEGER            NULL,       -- optional upper bound of ticks per time unit
+
+    -- Random number generator
+    seed               BIGINT             NOT NULL,   -- generated by the service if the client sends none
 
     -- Result of producing (filled when PROCESSED)
     records_produced   BIGINT             NULL,
@@ -423,10 +477,15 @@ CREATE TABLE tick_range (
     CONSTRAINT ck_tick_range_version      CHECK (version > 0),
     CONSTRAINT ck_tick_range_price_range  CHECK (price_min < price_max),
     CONSTRAINT ck_tick_range_initial_bid  CHECK (initial_bid BETWEEN price_min AND price_max),
-    CONSTRAINT ck_tick_range_time_range   CHECK (date_to IS NULL OR date_from < date_to),
-    CONSTRAINT ck_tick_range_stdev        CHECK (trend_stdev >= 0 AND volatility_stdev >= 0
-                                                 AND spread_stdev >= 0),
-    CONSTRAINT ck_tick_range_spread_mean  CHECK (spread_mean >= 0),
+    CONSTRAINT ck_tick_range_time_range   CHECK (date_from < date_to),
+    CONSTRAINT ck_tick_range_volatility   CHECK (volatility_sigma >= 0),
+    CONSTRAINT ck_tick_range_spread       CHECK (spread_mean >= 0 AND spread_stdev >= 0),
+    CONSTRAINT ck_tick_range_tick_timing  CHECK (
+        time_unit_seconds > 0 AND mean_ticks > 0 AND dispersion > 0
+        AND (min_ticks IS NULL OR min_ticks >= 0)
+        AND (max_ticks IS NULL OR max_ticks >= 1)
+        AND (min_ticks IS NULL OR max_ticks IS NULL OR min_ticks <= max_ticks)
+    ),
     CONSTRAINT ck_tick_range_ticks_per_object CHECK (ticks_per_object IS NULL OR ticks_per_object > 0),
     CONSTRAINT ck_tick_range_storage      CHECK (
         status NOT IN ('PROCESSED', 'EXPIRED')
@@ -457,6 +516,23 @@ Decisions and open points:
   - Consequences: a client that stops midway produces a `TickRangeDataRequested` without a matching `TickRangeDataDelivered`, and a client that starts at an offset other than 0 produces no `TickRangeDataRequested`. Each full download of the same range produces its own pair of events.
   - Open question: these events are appended to the `tick_range` aggregate, so each one increments its `version`. Concurrent downloads of the same range can then conflict on the optimistic-concurrency check (`uq_domain_event_aggregate_version`) and one must retry the insert. If that matters, retry on conflict, or record download events outside the aggregate's version sequence.
 - **Aggregate loading (decided).** The repository loads only the `tick_range` root. Tick data is read from MinIO page by page through a separate reader, never as part of the aggregate.
+- **Generation parameters (decided).** `TickRangeSpec` holds all the parameters needed to generate the ticks with the arithmetic random walk (see "Price generation process"): trend drift, volatility sigma, spread mean and standard deviation, tick timing (time unit, mean ticks, dispersion, optional bounds) and a seed. `date_to` is required, because a series needs an end.
 - **OHLC (out of scope for now).** `OHLCRange` is not modelled as an aggregate, and this data model covers only `TickRange`.
+
+### Output timeseries structure
+
+The ticks of a tick range are stored in MinIO as Parquet objects (`part-<n>.parquet`, see "Aggregate data model"). Every object of a tick range has the structure below. Rows are ordered by `timestamp` (non-decreasing), and the objects follow each other in time order, so the position of a tick in the series is the order of its object and its row inside it.
+
+| Column | Parquet type | Nullable | Note |
+| --- | --- | --- | --- |
+| timestamp | TIMESTAMP, UTC, microsecond unit | no | Tick time, produced by the tick-timing process (a random number of ticks per time unit, placed at random inside it; see `synthetic-price-generation.md`, "Random number of ticks per time unit"). |
+| bid | DECIMAL(18,8) | no | Bid price, produced by the random walk. |
+| ask | DECIMAL(18,8) | no | Ask price. Ask - Bid (the spread) is >= 0. |
+
+Notes:
+
+- The spread is not stored. It is `ask - bid`, always >= 0 (a sampled spread below zero is set to zero, see Business Rules), so it can be computed when reading.
+- The random walk works with floating point numbers. `bid` and `ask` are rounded to 8 decimal places before they are written, to fit `DECIMAL(18,8)`, the same precision as the prices in the `tick_range` table.
+- The timestamp is stored in UTC with microsecond resolution. At a high tick rate two ticks can fall on the same microsecond, which is why the order is non-decreasing and not strictly increasing.
 
 
