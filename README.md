@@ -44,7 +44,7 @@ Repeating the process until $p_1$ is replaced in the resultant formula:
 
 $p_n = p_{0} + \sum\limits_{i=1}^n \Delta p_i$
 
-If $\Delta p_{i}$ is produced by an stochastic process, then the series has the characteristics of a Random Walk.
+If $\Delta p_{i}$ is produced by a stochastic process, then the series has the characteristics of a Random Walk.
 
 Making $\Delta p_{i} \approx N(\mu, \sigma)$ a normal distribution with mean $\mu$ and standard deviation $\sigma$
 
