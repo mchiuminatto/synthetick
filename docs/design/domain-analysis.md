@@ -271,7 +271,7 @@ How the price of each tick is produced (the random walk, its drift and volatilit
 - Because the arithmetic walk is not bounded (it can drift out of the price range, or below zero), the price range rule in Business Rules, which resets the bid to `initial_bid`, keeps the bid inside the range (and above zero, because `min_price` must be greater than zero). The ask of a reset tick can exceed `max_price`, see Business Rules.
 - The reference document also describes how tick timestamps are generated (section "Tick timing", subsection "Random number of ticks per time unit"): a random number of ticks is drawn for each time unit from a probability distribution (Poisson, negative binomial or a fixed number), and the ticks are placed at random positions inside the time unit.
 - Decided: the number of ticks per time unit follows a negative binomial distribution, with a mean number of ticks per time unit and a dispersion parameter (Poisson is its limiting case).
-- The number of ticks in a date range is random, so `records_produced` is only known after the range is produced; before that only its expected value (mean ticks per time unit times the number of time units) is known.
+- The number of ticks in a date range is random, so `records_produced` is only known after the range is produced.
 
 **Parameters of the generator.** `TickRangeSpec` holds everything needed to generate the ticks with the arithmetic random walk:
 
@@ -281,7 +281,7 @@ How the price of each tick is produced (the random walk, its drift and volatilit
 | `instrument.price_decimals` | integer, 0 to 8 | Decimal places of the instrument price, copied from the catalog when the range is requested. Used to round `bid` and `ask` on output. |
 | `time_range.date_from` | UTC datetime | Start of the series. The time of a tick is `date_from` plus the seconds elapsed since the start. |
 | `time_range.date_to` | UTC datetime | End of the series. Ticks that fall after it are discarded. |
-| `initial_bid` | price | Bid at `date_from` (the start of the walk) and the value the bid is reset to. |
+| `initial_bid` | price | Starting value of the bid at `date_from` and the value the bid is reset to. It is not written as a tick: the first row is at `date_from` plus the first gap. |
 | `price_range.min_price`, `price_range.max_price` | price | Limits used by the reset rule. |
 | `trend.drift` | price per second | Drift of the walk. |
 | `volatility.sigma` | price per square-root second | Standard deviation of the price change over one second. |
@@ -299,7 +299,7 @@ Not part of the spec: the number of ticks per storage object (`ticks_per_object`
 1. Split the period from `date_from` to `date_to` in time units of `time_unit_seconds` seconds.
 2. For each time unit, draw the number of ticks from the negative binomial distribution with mean `mean_ticks` and dispersion `dispersion` (redrawing it while it is outside `min_ticks` and `max_ticks`, when they are given).
 3. Place that number of ticks at random moments inside the time unit and sort them. Put the time units one after another and discard the ticks after `date_to`. The gap of a tick is the time since the previous tick, in seconds; the first gap is measured from `date_from`.
-4. Start the walk with the bid equal to `initial_bid` at `date_from`. For each tick, add to the bid a normal random change with mean `trend.drift` times the gap and standard deviation `volatility.sigma` times the square root of the gap.
+4. Start the walk with the bid equal to `initial_bid` at `date_from` (this starting value is not written as a tick). For each tick, add to the bid a normal random change with mean `trend.drift` times the gap and standard deviation `volatility.sigma` times the square root of the gap.
 5. Sample the spread of the tick from the normal distribution with `spread.mean` and `spread.stdev` (setting it to zero if negative), and compute `ask = bid + spread`.
 6. Apply the price range rule of Business Rules to the tick: if it is outside the price range, the bid is reset to `initial_bid`, and the walk continues from there.
 7. Round `bid` and `ask` to `instrument.price_decimals` decimals (only the written values are rounded, not the state of the walk) and write the ticks in time order, `ticks_per_object` per object, in the structure defined in "Output timeseries structure".
