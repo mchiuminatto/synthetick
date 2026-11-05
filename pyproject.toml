@@ -16,6 +16,7 @@ classifiers = [
     "License :: OSI Approved :: MIT License",
     "Operating System :: OS Independent",
 ]
+
 dependencies = ["asyncio>=3",
                 "pandas>=2",
                 "numpy>=1.26",
