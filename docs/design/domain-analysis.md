@@ -14,7 +14,7 @@ Out of scope for now:
 ## Domain concepts
 
 - **Tick**: It is defined as a timestamp, a bid and an ask. The difference between ask and bid is called spread.
-- **Instrument**: Represents a financial instrument and its properties.
+- **Instrument**: Represents a financial instrument. It is reference data held in an instrument catalog, which is read-only for this context. For now its only properties are the symbol and the number of decimal places of its price (`price_decimals`).
 - **OHLC** (out of scope for now): It is an aggregation of ticks during a fixed period of time. Some OHLC aggregations do not use time but ticks or pips (price variation), but those are out of the scope for now. An **OHLC** entity is defined by **timeframe** and the **instrument** the prices represent, and is represented by the **Open**, **High**, **Low**, **Close** prices  the **Volume** of ticks for the period.
 - **Timeframe** (out of scope for now): Represents the time period that tick data is grouped in: an OHLC period. For example m5 (five minutes), H1 (one hour) and so on.
 - **Trend**: Defines the drift of the arithmetic random walk that produces the tick prices: the expected price change per second, in price units. If the drift is zero, the process is a pure random walk. If it is positive the trend leans upward, and if it is negative the trend leans downward.
@@ -79,6 +79,8 @@ usecase-beta
 
 ```
 
+The instrument catalog is outside this bounded context: it is reference data that the context only reads (see "Aggregate data model"). The domain accesses it through an `InstrumentCatalog` interface, so it does not depend on where the data is stored.
+
 ## Aggregates 
 
 ### Tick Range
@@ -112,7 +114,7 @@ namespace TickRangeAggregate{
     - tick_timing: TickTiming
     - seed: int
     - initial_bid: Decimal
-    - instrument: str
+    - instrument: InstrumentSpec
 
     +TickRangeSpec(price_range, time_range, trend, volatility, spread, tick_timing, seed, initial_bid, instrument)
   }
@@ -143,6 +145,11 @@ namespace TickRangeAggregate{
     + max_ticks: int | None
   }
 
+  class InstrumentSpec{
+    + symbol: str
+    + price_decimals: int
+  }
+
   class PriceRange{
     + min_price: Decimal
     + max_price: Decimal
@@ -161,6 +168,11 @@ namespace TickRangeAggregate{
 
 
 }
+class InstrumentCatalog {
+  <<interface>>
+  +get(symbol: str) InstrumentSpec
+}
+
 TickRange o-- TickRangeSpec
 TickRange ..> Tick : writes as records
 TickRange ..> ProductionResult : returns
@@ -170,9 +182,13 @@ TickRangeSpec o-- Volatility
 TickRangeSpec o-- Trend
 TickRangeSpec o-- Spread
 TickRangeSpec o-- TickTiming
+TickRangeSpec o-- InstrumentSpec
+InstrumentCatalog ..> InstrumentSpec : returns
 ```
 
 The ticks are not part of the aggregate: `produce()` writes them as records in Parquet objects in MinIO (see "Output timeseries structure") and returns only the counts (`records_produced` and `objects_produced`).
+
+`InstrumentSpec` is a copy of the instrument properties taken from the catalog when the range is requested. The application service reads the catalog and puts the copy in the spec; the aggregate never queries the catalog.
 
 ### Domain Events
 
@@ -261,7 +277,8 @@ How the price of each tick is produced (the random walk, its drift and volatilit
 
 | Spec field | Unit | Used for |
 | --- | --- | --- |
-| `instrument` | text | Label of the instrument. It does not change the generation. |
+| `instrument.symbol` | text | Symbol of the instrument. It must exist in the instrument catalog. |
+| `instrument.price_decimals` | integer, 0 to 8 | Decimal places of the instrument price, copied from the catalog when the range is requested. Used to round `bid` and `ask` on output. |
 | `time_range.date_from` | UTC datetime | Start of the series. The time of a tick is `date_from` plus the seconds elapsed since the start. |
 | `time_range.date_to` | UTC datetime | End of the series. Ticks that fall after it are discarded. |
 | `initial_bid` | price | Bid at `date_from` (the start of the walk) and the value the bid is reset to. |
@@ -285,9 +302,11 @@ Not part of the spec: the number of ticks per storage object (`ticks_per_object`
 4. Start the walk with the bid equal to `initial_bid` at `date_from`. For each tick, add to the bid a normal random change with mean `trend.drift` times the gap and standard deviation `volatility.sigma` times the square root of the gap.
 5. Sample the spread of the tick from the normal distribution with `spread.mean` and `spread.stdev` (setting it to zero if negative), and compute `ask = bid + spread`.
 6. Apply the price range rule of Business Rules to the tick: if it is outside the price range, the bid is reset to `initial_bid`, and the walk continues from there.
-7. Round `bid` and `ask` to 8 decimals and write the ticks in time order, `ticks_per_object` per object, in the structure defined in "Output timeseries structure".
+7. Round `bid` and `ask` to `instrument.price_decimals` decimals (only the written values are rounded, not the state of the walk) and write the ticks in time order, `ticks_per_object` per object, in the structure defined in "Output timeseries structure".
 
 All random numbers come from one generator initialised with `seed`.
+
+**Rounding.** Only the values written to the output are rounded. The state of the walk keeps its full precision, and the price range rule is evaluated on the unrounded values. If the state were rounded at every tick, the walk would hardly move, because the step per tick is much smaller than the last decimal (for example about 0.000005 against 0.001 for a price with 3 decimals). As a consequence, consecutive ticks can have the same bid, and a small sampled spread can become zero after rounding.
 
 ### Business Rules
 
@@ -298,6 +317,11 @@ All random numbers come from one generator initialised with `seed`.
 - if bid < price_range.min_price or ask > price_range.max_price, then bid = initial_bid (the price is reset, not reflected back into the range) and ask = bid + spread. The spread is random and cannot be known in advance, so the reset tick is exempt from this validation: if `initial_bid + spread` exceeds `price_range.max_price`, the tick is kept as is and the rule is not applied again to it. The rule applies again from the next tick.
 
 
+
+**Instrument and request**
+
+- The `instrument` symbol must exist in the instrument catalog. Otherwise the request is rejected (404) and no tick range is created.
+- `initial_bid`, `min_price` and `max_price` must not have more decimals than `price_decimals` of the instrument. Otherwise the request is rejected (400).
 
 ## Generic Sequence Scenario
 
@@ -316,6 +340,8 @@ sequenceDiagram
 
     Client ->> API: /history/tick-range/?instrument=USDJPY&date_from=2025-01-01<br>&date_to=2025-01-02&min_price=100&max_price=200<br>&initial_bid=110&trend_drift=0.0000001&volatility_sigma=0.002<br>&spread_mean=0.02&spread_stdev=0.005<br>&time_unit_seconds=1&mean_ticks=10&dispersion=4<br>&seed=42
     API ->> API: Authenticate
+    API ->> DB: get price_decimals of the instrument (instrument catalog)
+    DB -->> API: price_decimals (unknown instrument: 404)
     API ->> Core: TickRange(TickRangeSpec)
     Core --|/ API: tick_range_id
     API --|/ Client: tick_range_id
@@ -434,9 +460,10 @@ The database engine is PostgreSQL. The DDL relies on `UUID`, `JSONB`, `TIMESTAMP
 
 ### Aggregate data model
 
-Only the `TickRange` aggregate exists so far, so the schema covers it. The generated ticks are not stored in the database: they are written to MinIO (S3-compatible object storage) as Parquet objects. The database holds a single table:
+Only the `TickRange` aggregate exists so far, so the schema covers it. The generated ticks are not stored in the database: they are written to MinIO (S3-compatible object storage) as Parquet objects. The database holds the `tick_range` table and the read-only `instrument` reference table:
 
 - `tick_range`: the aggregate root, with the `TickRangeSpec` value objects (`PriceRange`, `TimeRange`, `Trend`, `Volatility`, `Spread`, `TickTiming`) flattened into columns, because value objects have no identity of their own. It also holds the processing status that the API reads when the client polls `/status`, and the location of the tick data in MinIO.
+- `instrument`: the instrument catalog, which is reference data and read-only for the Synthetic Price context. For each symbol it holds the decimal places of its price (`price_decimals`). The database is the source of truth: the table is filled by an import job (from a file or a public data source) and not by this context. It is read when a tick range is requested.
 
 Design notes:
 
@@ -453,8 +480,17 @@ Design notes:
 - Retention and expiry: the retention period is a configuration value, in whole days. The objects of a tick range expire through a MinIO lifecycle rule (TTL) with that period, so the application does not delete them. `expires_at` is set to the time the range becomes `PROCESSED` plus the retention period. MinIO applies the TTL by object age, in whole days and when its lifecycle scan runs, so the objects can disappear a little before or after `expires_at`; the API treats a range as expired (410) once `expires_at` has passed, or when its objects are missing. A periodic job marks the `PROCESSED` ranges whose `expires_at` has passed as `EXPIRED` and emits `TickRangeDataExpired`. The `tick_range` row and its events are kept.
 - Writing to MinIO and to the database cannot be one transaction. Write the objects first and then, in one database transaction, mark the range `PROCESSED` and insert `TickRangeProcessed`. If the process fails in between, the result is orphan objects, which the MinIO TTL removes after the retention period, like any other object. It is never a `PROCESSED` range without data.
 - The ticks (columns `timestamp`, `bid` and `ask`) are not stored in the database. Their columns and types are defined in "Output timeseries structure" below. Ticks are written in time order, and each object holds a fixed number of ticks except the last one.
+- `tick_range.price_decimals` is a copy of the `price_decimals` of the instrument taken when the range is requested. It makes a range reproducible with the same seed even if the catalog changes later, and it travels in the `TickRangeRequested` event inside the spec. `tick_range.instrument` references `instrument.symbol`.
 
 ```sql
+CREATE TABLE instrument (
+    symbol          VARCHAR(20)  NOT NULL,
+    price_decimals  SMALLINT     NOT NULL,   -- decimal places of the price
+
+    CONSTRAINT pk_instrument PRIMARY KEY (symbol),
+    CONSTRAINT ck_instrument_price_decimals CHECK (price_decimals BETWEEN 0 AND 8)
+);
+
 CREATE TYPE tick_range_status AS ENUM
     ('REQUESTED', 'STARTED', 'PROCESSED', 'EXPIRED', 'FAILED');
 
@@ -465,6 +501,7 @@ CREATE TABLE tick_range (
 
     -- TickRangeSpec
     instrument         VARCHAR(20)        NOT NULL,   -- e.g. 'USDJPY'
+    price_decimals     SMALLINT           NOT NULL,   -- copy of instrument.price_decimals when requested
     initial_bid        NUMERIC(18,8)      NOT NULL,
 
     -- PriceRange
@@ -512,6 +549,8 @@ CREATE TABLE tick_range (
     updated_at         TIMESTAMPTZ        NOT NULL DEFAULT now(),
 
     CONSTRAINT pk_tick_range PRIMARY KEY (tick_range_id),
+    CONSTRAINT fk_tick_range_instrument   FOREIGN KEY (instrument) REFERENCES instrument (symbol),
+    CONSTRAINT ck_tick_range_price_decimals CHECK (price_decimals BETWEEN 0 AND 8),
     CONSTRAINT ck_tick_range_version      CHECK (version > 0),
     CONSTRAINT ck_tick_range_price_range  CHECK (min_price < max_price),
     CONSTRAINT ck_tick_range_min_price    CHECK (min_price > 0),
@@ -560,6 +599,7 @@ Decisions and open points:
 - **Failure (decided).** A production that fails moves the range to `FAILED`, with the reason in `failure_reason` and a `TickRangeFailed` event. `/status` returns the status and the reason, and `/data` returns 409.
 - **Retention and expiry (decided).** The retention period is configuration; MinIO deletes the objects with a lifecycle rule (TTL) of that length. `expires_at` is the time the range becomes `PROCESSED` plus the retention period. A periodic job marks expired ranges `EXPIRED` and emits `TickRangeDataExpired`.
 - **Prices (decided).** `min_price` must be greater than zero, so the bid never goes below zero.
+- **Instrument (decided).** The instrument is reference data from a separate, read-only instrument catalog. The database is the source of truth, loaded by an import job. For now it has only the symbol and `price_decimals`. The tick range keeps a copy of `price_decimals` in its spec, and `bid` and `ask` are rounded to it on output only; the state of the walk is not rounded.
 - **Generation parameters (decided).** `TickRangeSpec` holds all the parameters needed to generate the ticks with the arithmetic random walk (see "Price generation process"): trend drift, volatility sigma, spread mean and standard deviation, tick timing (time unit, mean ticks, dispersion, optional bounds) and a seed. `date_to` is required, because a series needs an end.
 - **OHLC (out of scope for now).** `OHLCRange` is not modelled as an aggregate, and this data model covers only `TickRange`.
 
@@ -576,7 +616,7 @@ The ticks of a tick range are stored in MinIO as Parquet objects (`part-<n>.parq
 Notes:
 
 - The spread is not stored. It is `ask - bid`, always >= 0 (a sampled spread below zero is set to zero, see Business Rules), so it can be computed when reading.
-- The random walk works with floating point numbers. `bid` and `ask` are rounded to 8 decimal places before they are written, to fit `DECIMAL(18,8)`, the same precision as the prices in the `tick_range` table.
+- The random walk works with floating point numbers. `bid` and `ask` are rounded to the `price_decimals` of the instrument (0 to 8) before they are written; only the written values are rounded. The column type stays `DECIMAL(18,8)` for every instrument, the same precision as the prices in the `tick_range` table, so the file schema does not depend on the instrument.
 - The timestamp is stored in UTC with microsecond resolution. At a high tick rate two ticks can fall on the same microsecond, which is why the order is non-decreasing and not strictly increasing.
 
 
