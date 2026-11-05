@@ -17,14 +17,15 @@ classifiers = [
     "Operating System :: OS Independent",
 ]
 
-dependencies = ["asyncio>=3",
-                "pandas>=2",
-                "numpy>=1.26",
-                "mplfinance>=0.12",
-                "matplotlib>=3.8",
-                "pyarrow>=13.0",
+dependencies = [
+    "asyncio>=3",
+    "pandas>=2",
+    "numpy>=1.26",
+    "mplfinance>=0.12",
+    "matplotlib>=3.8",
+    "pyarrow>=13.0",
+]
 
-    ]
 
 [tool.setuptools]
 packages = ["synthetick"]
