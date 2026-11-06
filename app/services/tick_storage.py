@@ -23,11 +23,16 @@ def filesystem() -> fs.S3FileSystem:
         secret_key=os.environ["MINIO_ROOT_PASSWORD"],
         endpoint_override=os.environ.get("MINIO_ENDPOINT", "localhost:9000"),
         scheme="http",
+        allow_bucket_creation=True,
     )
 
 
 def bucket_name() -> str:
     return os.environ.get("MINIO_BUCKET", "synthetick")
+
+
+def ensure_bucket() -> None:
+    filesystem().create_dir(bucket_name())
 
 
 def _decimal(prices: np.ndarray) -> pa.Array:
