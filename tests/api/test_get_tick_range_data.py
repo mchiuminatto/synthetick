@@ -8,6 +8,7 @@ from app.services.tick_range import process_next_tick_range
 
 
 async def test_data_of_unfinished_range_returns_409_not_ready(db, valid_request):
+
     transport = httpx.ASGITransport(app=app)
     async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
         created = await client.post("/v1/history/tick-range", json=valid_request)

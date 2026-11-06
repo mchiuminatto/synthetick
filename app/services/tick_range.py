@@ -85,8 +85,10 @@ async def request_tick_range(spec: Mapping[str, Any]) -> uuid.UUID:
     return tick_range_id
 
 
-async def process_next_tick_range() -> None:
+async def process_next_tick_range() -> bool:
     """Take a REQUESTED range, generate and store its ticks, mark it PROCESSED.
+
+    Return False when there was no REQUESTED range, True after processing one.
 
     The row lock is held until PROCESSED is written (ADR-0002).
     """
@@ -101,7 +103,10 @@ async def process_next_tick_range() -> None:
                     """
                 )
             )
-        ).mappings().one()
+        ).mappings().first()
+        if row is None:
+            await engine.dispose()
+            return False
         spec = TickSpec(
             date_from=row["date_from"],
             date_to=row["date_to"],
@@ -140,3 +145,4 @@ async def process_next_tick_range() -> None:
             },
         )
     await engine.dispose()
+    return True
