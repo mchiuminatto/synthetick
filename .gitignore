@@ -163,7 +163,7 @@ cython_debug/
 
 # vscode
 
-.vscode
+.vscode/
 
 *.bkp
 *.dtmp

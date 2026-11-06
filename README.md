@@ -8,6 +8,8 @@ This is a work in progress. The first iteration covers the historic tick range t
 
 ## Documentation
 
+
 - [Domain analysis](docs/design/domain-analysis.md): domain model, rules, endpoints and data model.
 - [Tech stack](docs/design/tech-stack.md): technology decisions.
 - [Synthetic price generation](docs/design/synthetic-price-generation.md): the random walk reference.
+
