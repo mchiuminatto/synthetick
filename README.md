@@ -13,3 +13,5 @@ This is a work in progress. The first iteration covers the historic tick range t
 - [Tech stack](docs/design/tech-stack.md): technology decisions.
 - [Synthetic price generation](docs/design/synthetic-price-generation.md): the random walk reference.
 
+
+

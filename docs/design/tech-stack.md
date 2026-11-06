@@ -84,7 +84,9 @@ This document lists the technologies chosen for Synthetick and the role each one
 - **Notes:**
   - Delivery is at-least-once. Producing a range must be safe to repeat: the seed is stored in the spec, so the same range gives the same series, and the objects are written to a fixed prefix, so a rerun overwrites them.
 
+
   - Worker crashes: the worker container runs with the Docker restart policy `on-failure`, so Docker starts it again if it exits with an error (including a crash or an out-of-memory kill). The policy only restarts the process. It does not change the database, so a range that was `STARTED` when the worker died stays `STARTED` until something handles it. What the restarted worker does with those ranges (retry from the start, or mark them `FAILED`) is not decided here.
+
 
   - The API and the worker share one codebase and the same core library, with two entrypoints and two container images.
   - Why not a broker (RabbitMQ, Redis): the load is a few long-running jobs, not a high message rate, and the outbox and the `REQUESTED` status already exist. A broker adds a service and a technology for no current need. If the load grows, a broker can replace the polling because the domain only depends on "a request was made". That change gets its own ADR.
