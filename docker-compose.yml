@@ -1,5 +1,7 @@
 x-app: &app
-  build: .
+  build:
+    context: .
+    dockerfile: deploy/Dockerfile
   image: synthetick-app:local
   environment:
     POSTGRES_USER: ${POSTGRES_USER}
