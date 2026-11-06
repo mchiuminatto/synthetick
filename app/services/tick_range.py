@@ -9,6 +9,9 @@ from sqlalchemy import URL, text
 from sqlalchemy.ext.asyncio import create_async_engine
 from sqlalchemy.pool import NullPool
 
+from app.services import tick_storage
+from app.services.tick_generator import TickSpec, generate_ticks
+
 
 def _engine():
     url = URL.create(
@@ -75,3 +78,60 @@ async def request_tick_range(spec: Mapping[str, Any]) -> uuid.UUID:
         )
     await engine.dispose()
     return tick_range_id
+
+
+async def process_next_tick_range() -> None:
+    """Take a REQUESTED range, generate and store its ticks, mark it PROCESSED.
+
+    The row lock is held until PROCESSED is written (ADR-0002).
+    """
+    engine = _engine()
+    async with engine.begin() as connection:
+        row = (
+            await connection.execute(
+                text(
+                    """
+                    SELECT * FROM tick_range WHERE status = 'REQUESTED'
+                    ORDER BY created_at LIMIT 1 FOR UPDATE SKIP LOCKED
+                    """
+                )
+            )
+        ).mappings().one()
+        spec = TickSpec(
+            date_from=row["date_from"],
+            date_to=row["date_to"],
+            initial_bid=float(row["initial_bid"]),
+            trend_drift=row["trend_drift"],
+            volatility_sigma=row["volatility_sigma"],
+            spread_mean=row["spread_mean"],
+            spread_stdev=row["spread_stdev"],
+            time_unit_seconds=row["time_unit_seconds"],
+            mean_ticks=row["mean_ticks"],
+            dispersion=row["dispersion"],
+            min_ticks=row["min_ticks"],
+            max_ticks=row["max_ticks"],
+        )
+        ticks = generate_ticks(spec, seed=row["seed"])
+        prefix = f"tick-range/{row['tick_range_id']}/"
+        ticks_per_object = int(os.environ.get("TICKS_PER_OBJECT", "100000"))
+        objects = tick_storage.write_ticks(ticks, prefix, ticks_per_object)
+        await connection.execute(
+            text(
+                """
+                UPDATE tick_range SET status = 'PROCESSED', records_produced = :records,
+                    storage_bucket = :bucket, storage_prefix = :prefix,
+                    objects_produced = :objects, ticks_per_object = :per_object,
+                    updated_at = now()
+                WHERE tick_range_id = :id
+                """
+            ),
+            {
+                "records": len(ticks.timestamps),
+                "bucket": tick_storage.bucket_name(),
+                "prefix": prefix,
+                "objects": objects,
+                "per_object": ticks_per_object,
+                "id": row["tick_range_id"],
+            },
+        )
+    await engine.dispose()
