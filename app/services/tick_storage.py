@@ -55,3 +55,20 @@ def write_ticks(ticks: Ticks, prefix: str, ticks_per_object: int) -> int:
             row_group_size=ROW_GROUP_SIZE,
         )
     return objects
+
+
+def read_ticks(bucket: str, prefix: str) -> list[dict[str, str]]:
+    """Read the objects under the prefix, in order, as JSON-ready ticks."""
+    s3 = filesystem()
+    infos = sorted(s3.get_file_info(fs.FileSelector(f"{bucket}/{prefix}")), key=lambda i: i.path)
+    ticks = []
+    for info in infos:
+        for row in pq.read_table(info.path, filesystem=s3).to_pylist():
+            ticks.append(
+                {
+                    "timestamp": row["timestamp"].isoformat().replace("+00:00", "Z"),
+                    "bid": str(row["bid"]),
+                    "ask": str(row["ask"]),
+                }
+            )
+    return ticks

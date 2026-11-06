@@ -7,6 +7,7 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
 from app.services import tick_range as tick_range_service
+from app.services import tick_storage
 
 router = APIRouter(prefix="/v1/history/tick-range", tags=["tick-range"])
 
@@ -30,8 +31,15 @@ class TickRangeRequest(BaseModel):
 
 @router.get("/{tick_range_id}/data")
 async def get_data(tick_range_id: uuid.UUID):
-    status = await tick_range_service.get_status(tick_range_id)
-    return JSONResponse(status_code=409, content={"status": status})
+    tick_range = await tick_range_service.get_tick_range(tick_range_id)
+    if tick_range["status"] != "PROCESSED":
+        return JSONResponse(status_code=409, content={"status": tick_range["status"]})
+    ticks = tick_storage.read_ticks(tick_range["storage_bucket"], tick_range["storage_prefix"])
+    return {
+        "tick_range_id": str(tick_range_id),
+        "records_produced": tick_range["records_produced"],
+        "ticks": ticks,
+    }
 
 
 @router.post("", status_code=202)

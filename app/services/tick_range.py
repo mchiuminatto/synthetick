@@ -29,16 +29,21 @@ def _json_default(value: Any) -> str:
     return value.isoformat() if isinstance(value, datetime) else str(value)
 
 
-async def get_status(tick_range_id: uuid.UUID) -> str:
+async def get_tick_range(tick_range_id: uuid.UUID) -> Mapping[str, Any]:
     engine = _engine()
     async with engine.connect() as connection:
         result = await connection.execute(
-            text("SELECT status FROM tick_range WHERE tick_range_id = :id"),
+            text(
+                """
+                SELECT status, storage_bucket, storage_prefix, records_produced
+                FROM tick_range WHERE tick_range_id = :id
+                """
+            ),
             {"id": tick_range_id},
         )
-        status = result.scalar_one()
+        row = result.mappings().one()
     await engine.dispose()
-    return str(status)
+    return {**row, "status": str(row["status"])}
 
 
 async def request_tick_range(spec: Mapping[str, Any]) -> uuid.UUID:
