@@ -22,4 +22,5 @@ Backlog: Jira project SYN, epic SYN-25 "Implement tick range" (stories SYN-41 to
 - PostgreSQL 18.6 in Docker (`postgres:18.6`): instrument catalog, `tick_range`, `domain_event`, and the job queue.
 - MinIO (`docker.io/pgsty/silo:RELEASE.2026-10-26T00-00-00Z`) in Docker: tick datasets as Parquet, `tick-range/<tick-range-id>/part-<n>.parquet`.
 - Worker: the core (`TickRange` aggregate) runs in its own container. The API records the request (`REQUESTED` plus the event, in one transaction) and the worker takes it from PostgreSQL with `FOR UPDATE SKIP LOCKED`. No message broker. Container restart policy `on-failure`.
+- Application code lives under `app/`: `main.py`, `routers/` (one per resource), `services/` (core logic, no FastAPI imports), `migrations/` (ADR-0001, `docs/ADR/0001-application-structure.md`).
 - Docker Compose for the local services. Credentials and settings come from environment variables, never from code.

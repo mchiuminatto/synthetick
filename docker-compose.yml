@@ -1,4 +1,49 @@
+x-app: &app
+  build:
+    context: .
+    dockerfile: deploy/Dockerfile
+  image: synthetick-app:local
+  environment:
+    POSTGRES_USER: ${POSTGRES_USER}
+    POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    POSTGRES_DB: ${POSTGRES_DB}
+    POSTGRES_HOST: postgres
+    MINIO_ROOT_USER: ${MINIO_ROOT_USER}
+    MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+    MINIO_ENDPOINT: minio:9000
+    MINIO_BUCKET: ${MINIO_BUCKET:-synthetick}
+
 services:
+  migrate:
+    <<: *app
+    command: ["alembic", "upgrade", "head"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+
+  worker:
+    <<: *app
+    command: ["python", "-m", "app.worker"]
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      minio:
+        condition: service_started
+    restart: on-failure
+
+  api:
+    <<: *app
+    command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+    ports:
+      - "8000:8000"
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      minio:
+        condition: service_started
+    restart: on-failure
+
   postgres:
     image: postgres:18.6
     environment:

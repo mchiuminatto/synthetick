@@ -25,6 +25,11 @@ Issues = "https://github.com/mchiuminatto/synthetick/issues"
 [tool.uv]
 package = false
 
+[tool.pytest.ini_options]
+pythonpath = ["."]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+
 [dependency-groups]
 dev = [
     "httpx>=0.28.1",
