@@ -29,7 +29,8 @@ def _json_default(value: Any) -> str:
     return value.isoformat() if isinstance(value, datetime) else str(value)
 
 
-async def get_tick_range(tick_range_id: uuid.UUID) -> Mapping[str, Any]:
+async def get_tick_range(tick_range_id: uuid.UUID) -> Mapping[str, Any] | None:
+    """Return the tick range row, or None when there is no such tick range."""
     engine = _engine()
     async with engine.connect() as connection:
         result = await connection.execute(
@@ -41,8 +42,10 @@ async def get_tick_range(tick_range_id: uuid.UUID) -> Mapping[str, Any]:
             ),
             {"id": tick_range_id},
         )
-        row = result.mappings().one()
+        row = result.mappings().first()
     await engine.dispose()
+    if row is None:
+        return None
     return {**row, "status": str(row["status"])}
 
 

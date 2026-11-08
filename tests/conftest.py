@@ -62,6 +62,18 @@ def valid_request() -> dict:
     }
 
 
+@pytest.fixture
+def invalid_request(valid_request: dict):
+    """Build a request that is valid except for the given fields, e.g. invalid_request(max_ticks=-1)."""
+
+    def build(**overrides) -> dict:
+        unknown = set(overrides) - set(valid_request)
+        assert not unknown, f"not request fields: {unknown}"
+        return {**valid_request, **overrides}
+
+    return build
+
+
 @pytest.fixture(scope="session")
 def s3() -> fs.S3FileSystem:
     """The MinIO test bucket (created if missing), reached with the Compose credentials."""

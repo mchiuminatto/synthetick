@@ -1,3 +1,4 @@
+import uuid
 from datetime import datetime, timezone
 from decimal import Decimal
 
@@ -5,6 +6,14 @@ import httpx
 
 from app.main import app
 from app.services.tick_range import process_next_tick_range
+
+
+async def test_data_of_non_existing_tick_range_returns_404(db):
+    transport = httpx.ASGITransport(app=app)
+    async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+        response = await client.get(f"/v1/history/tick-range/{uuid.uuid4()}/data")
+
+    assert response.status_code == 404
 
 
 async def test_data_of_unfinished_range_returns_409_not_ready(db, valid_request):
