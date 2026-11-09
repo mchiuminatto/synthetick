@@ -1,11 +1,10 @@
 import uuid
-from datetime import datetime
 from decimal import Decimal
 from typing import Self
 
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import JSONResponse
-from pydantic import BaseModel, Field, model_validator
+from pydantic import AwareDatetime, BaseModel, Field, model_validator
 
 from app.services import tick_range as tick_range_service
 from app.services import tick_storage
@@ -13,21 +12,28 @@ from app.services import tick_storage
 router = APIRouter(prefix="/v1/history/tick-range", tags=["tick-range"])
 
 
+INT32_MAX = 2_147_483_647
+PRICE = {"max_digits": 18, "decimal_places": 8}  # NUMERIC(18,8)
+
+
 class TickRangeRequest(BaseModel):
-    instrument: str = Field(min_length=1)
-    date_from: datetime
-    date_to: datetime
-    min_price: Decimal = Field(gt=0)
-    max_price: Decimal
-    initial_bid: Decimal
-    volatility_sigma: float = Field(ge=0)
-    spread_mean: float = Field(ge=0)
-    spread_stdev: float = Field(ge=0)
-    time_unit_seconds: float = Field(gt=0)
-    mean_ticks: float = Field(gt=0)
-    dispersion: float = Field(gt=0)
-    min_ticks: int = Field(ge=0)
-    max_ticks: int
+    """Mirrors the tick_range CHECK constraints and column limits, so that a bad
+    request is a 422 here and never a database error."""
+
+    instrument: str = Field(min_length=1, max_length=20)
+    date_from: AwareDatetime
+    date_to: AwareDatetime
+    min_price: Decimal = Field(gt=0, **PRICE)
+    max_price: Decimal = Field(**PRICE)
+    initial_bid: Decimal = Field(**PRICE)
+    volatility_sigma: float = Field(ge=0, allow_inf_nan=False)
+    spread_mean: float = Field(ge=0, allow_inf_nan=False)
+    spread_stdev: float = Field(ge=0, allow_inf_nan=False)
+    time_unit_seconds: float = Field(gt=0, allow_inf_nan=False)
+    mean_ticks: float = Field(gt=0, allow_inf_nan=False)
+    dispersion: float = Field(gt=0, allow_inf_nan=False)
+    min_ticks: int = Field(ge=0, le=INT32_MAX)
+    max_ticks: int = Field(ge=1, le=INT32_MAX)
 
     @model_validator(mode="after")
     def check_ranges(self) -> Self:
@@ -39,6 +45,8 @@ class TickRangeRequest(BaseModel):
             raise ValueError("initial_bid must be between min_price and max_price")
         if self.min_ticks > self.max_ticks:
             raise ValueError("min_ticks must not be above max_ticks")
+        if not self.min_ticks <= self.mean_ticks <= self.max_ticks:
+            raise ValueError("mean_ticks must be between min_ticks and max_ticks")
         return self
 
 
