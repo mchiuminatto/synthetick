@@ -16,4 +16,6 @@ COPY alembic.ini ./
 COPY app ./app
 
 # One image for the API, the worker and the migration step; Compose sets the command.
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
+
