@@ -1,15 +1,20 @@
 import uuid
+
+
 from decimal import Decimal
 from typing import Self
 
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import JSONResponse
+
 from pydantic import AwareDatetime, BaseModel, Field, model_validator
+
 
 from app.services import tick_range as tick_range_service
 from app.services import tick_storage
 
 router = APIRouter(prefix="/v1/history/tick-range", tags=["tick-range"])
+
 
 
 INT32_MAX = 2_147_483_647
@@ -35,6 +40,7 @@ class TickRangeRequest(BaseModel):
     min_ticks: int = Field(ge=0, le=INT32_MAX)
     max_ticks: int = Field(ge=1, le=INT32_MAX)
 
+
     @model_validator(mode="after")
     def check_ranges(self) -> Self:
         if self.date_from >= self.date_to:
@@ -47,6 +53,7 @@ class TickRangeRequest(BaseModel):
             raise ValueError("min_ticks must not be above max_ticks")
         if not self.min_ticks <= self.mean_ticks <= self.max_ticks:
             raise ValueError("mean_ticks must be between min_ticks and max_ticks")
+
         return self
 
 

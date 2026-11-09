@@ -21,7 +21,6 @@ INVALID_FIELDS = {
     "dispersion_not_positive": {"dispersion": 0},
     "min_ticks_negative": {"min_ticks": -1},
     "min_ticks_above_max_ticks": {"min_ticks": 60, "max_ticks": 50},
-    "instrument_empty": {"instrument": ""},
     "max_ticks_zero": {"max_ticks": 0, "min_ticks": 0, "mean_ticks": 0.5},
     "mean_ticks_below_min_ticks": {"min_ticks": 20},
     "mean_ticks_above_max_ticks": {"max_ticks": 5},
@@ -31,6 +30,7 @@ INVALID_FIELDS = {
     "max_ticks_above_integer_range": {"max_ticks": 2_147_483_648},
     "date_naive": {"date_from": "2025-01-01T00:00:00"},
     "volatility_sigma_infinite": {"volatility_sigma": "Infinity"},
+
 }
 
 
