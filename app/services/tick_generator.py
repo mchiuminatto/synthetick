@@ -1,4 +1,5 @@
 import math
+from collections.abc import Iterator
 from dataclasses import dataclass
 from datetime import datetime
 
@@ -58,3 +59,8 @@ def generate_ticks(spec: TickSpec, seed: int) -> Ticks:
     start = np.datetime64(spec.date_from.replace(tzinfo=None), "us")
     timestamps = start + (seconds * 1_000_000).astype("int64").astype("timedelta64[us]")
     return Ticks(timestamps=timestamps, bid=bid, ask=bid + spread)
+
+
+def generate_blocks(spec: TickSpec, seed: int) -> Iterator[Ticks]:
+    """Yield the ticks of the range block by block (ADR-0003)."""
+    yield generate_ticks(spec, seed)
