@@ -2,7 +2,7 @@ from datetime import datetime, timedelta, timezone
 
 import numpy as np
 
-from app.services.tick_generator import TickSpec, generate_blocks, generate_ticks
+from app.services.tick_generator import TICKS_PER_OBJECT, TickSpec, generate_blocks, generate_ticks
 
 
 def test_generated_ticks_are_in_time_order_inside_date_range_with_ask_not_below_bid():
@@ -81,3 +81,26 @@ def test_different_seeds_give_different_ticks():
     bid_seed_2 = np.concatenate([block.bid for block in generate_blocks(spec, seed=2)])
 
     assert not (len(bid_seed_1) == len(bid_seed_2) and np.array_equal(bid_seed_1, bid_seed_2))
+
+
+def test_no_block_has_more_ticks_than_ticks_per_object():
+    date_from = datetime(2025, 1, 1, tzinfo=timezone.utc)
+    spec = TickSpec(
+        date_from=date_from,
+        date_to=date_from + timedelta(hours=1),
+        initial_bid=110.0,
+        trend_drift=0.0,
+        volatility_sigma=0.002,
+        spread_mean=0.02,
+        spread_stdev=0.005,
+        time_unit_seconds=1.0,
+        mean_ticks=50.0,
+        dispersion=4.0,
+        min_ticks=0,
+        max_ticks=200,
+    )
+
+    block_sizes = [len(block.timestamps) for block in generate_blocks(spec, seed=42)]
+
+    assert sum(block_sizes) > TICKS_PER_OBJECT
+    assert all(size <= TICKS_PER_OBJECT for size in block_sizes)
