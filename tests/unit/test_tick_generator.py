@@ -58,3 +58,26 @@ def test_same_seed_and_spec_give_identical_ticks_on_repeated_runs():
         assert np.array_equal(block_a.timestamps, block_b.timestamps)
         assert np.array_equal(block_a.bid, block_b.bid)
         assert np.array_equal(block_a.ask, block_b.ask)
+
+
+def test_different_seeds_give_different_ticks():
+    date_from = datetime(2025, 1, 1, tzinfo=timezone.utc)
+    spec = TickSpec(
+        date_from=date_from,
+        date_to=date_from + timedelta(minutes=1),
+        initial_bid=110.0,
+        trend_drift=0.0,
+        volatility_sigma=0.002,
+        spread_mean=0.02,
+        spread_stdev=0.005,
+        time_unit_seconds=1.0,
+        mean_ticks=10.0,
+        dispersion=4.0,
+        min_ticks=0,
+        max_ticks=50,
+    )
+
+    bid_seed_1 = np.concatenate([block.bid for block in generate_blocks(spec, seed=1)])
+    bid_seed_2 = np.concatenate([block.bid for block in generate_blocks(spec, seed=2)])
+
+    assert not (len(bid_seed_1) == len(bid_seed_2) and np.array_equal(bid_seed_1, bid_seed_2))
