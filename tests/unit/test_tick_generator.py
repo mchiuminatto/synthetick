@@ -183,3 +183,28 @@ def test_ticks_stay_in_order_inside_date_range_with_ask_not_below_bid_across_blo
     assert timestamps[0] >= np.datetime64("2025-01-01T00:00:00", "us")
     assert timestamps[-1] <= np.datetime64("2025-01-01T01:00:00", "us")
     assert np.all(ask >= bid)
+
+
+def test_a_range_shorter_than_one_block_gives_a_single_block_inside_the_range():
+    date_from = datetime(2025, 1, 1, tzinfo=timezone.utc)
+    spec = TickSpec(
+        date_from=date_from,
+        date_to=date_from + timedelta(seconds=5),
+        initial_bid=110.0,
+        trend_drift=0.0,
+        volatility_sigma=0.002,
+        spread_mean=0.02,
+        spread_stdev=0.005,
+        time_unit_seconds=1.0,
+        mean_ticks=10.0,
+        dispersion=4.0,
+        min_ticks=0,
+        max_ticks=50,
+    )
+
+    blocks = list(generate_blocks(spec, seed=42))
+
+    assert len(blocks) == 1
+    assert len(blocks[0].timestamps) > 0
+    assert blocks[0].timestamps[0] >= np.datetime64("2025-01-01T00:00:00", "us")
+    assert blocks[0].timestamps[-1] <= np.datetime64("2025-01-01T00:00:05", "us")
