@@ -132,3 +132,25 @@ def test_price_carries_over_block_boundaries_without_a_jump():
     assert np.all(np.diff(bid) >= 0)
     elapsed_seconds = (timestamps[-1] - np.datetime64("2025-01-01T00:00:00", "us")) / np.timedelta64(1, "s")
     assert bid[-1] == pytest.approx(110.0 + 0.001 * elapsed_seconds, abs=1e-6)
+
+
+def test_blocks_are_one_time_unit_when_max_ticks_is_bigger_than_ticks_per_object():
+    date_from = datetime(2025, 1, 1, tzinfo=timezone.utc)
+    spec = TickSpec(
+        date_from=date_from,
+        date_to=date_from + timedelta(seconds=5),
+        initial_bid=110.0,
+        trend_drift=0.0,
+        volatility_sigma=0.002,
+        spread_mean=0.02,
+        spread_stdev=0.005,
+        time_unit_seconds=1.0,
+        mean_ticks=10.0,
+        dispersion=4.0,
+        min_ticks=0,
+        max_ticks=TICKS_PER_OBJECT + 1,
+    )
+
+    blocks = list(generate_blocks(spec, seed=42))
+
+    assert len(blocks) == 5
