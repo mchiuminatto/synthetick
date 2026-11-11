@@ -1,6 +1,7 @@
 from datetime import datetime, timedelta, timezone
 
 import numpy as np
+import pytest
 
 from app.services.tick_generator import TICKS_PER_OBJECT, TickSpec, generate_blocks, generate_ticks
 
@@ -104,3 +105,30 @@ def test_no_block_has_more_ticks_than_ticks_per_object():
 
     assert sum(block_sizes) > TICKS_PER_OBJECT
     assert all(size <= TICKS_PER_OBJECT for size in block_sizes)
+
+
+def test_price_carries_over_block_boundaries_without_a_jump():
+    date_from = datetime(2025, 1, 1, tzinfo=timezone.utc)
+    spec = TickSpec(
+        date_from=date_from,
+        date_to=date_from + timedelta(hours=1),
+        initial_bid=110.0,
+        trend_drift=0.001,
+        volatility_sigma=0.0,
+        spread_mean=0.02,
+        spread_stdev=0.005,
+        time_unit_seconds=1.0,
+        mean_ticks=50.0,
+        dispersion=4.0,
+        min_ticks=0,
+        max_ticks=200,
+    )
+
+    blocks = list(generate_blocks(spec, seed=42))
+    timestamps = np.concatenate([block.timestamps for block in blocks])
+    bid = np.concatenate([block.bid for block in blocks])
+
+    assert len(blocks) > 1
+    assert np.all(np.diff(bid) >= 0)
+    elapsed_seconds = (timestamps[-1] - np.datetime64("2025-01-01T00:00:00", "us")) / np.timedelta64(1, "s")
+    assert bid[-1] == pytest.approx(110.0 + 0.001 * elapsed_seconds, abs=1e-6)

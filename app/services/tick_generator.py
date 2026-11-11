@@ -72,6 +72,8 @@ def generate_blocks(spec: TickSpec, seed: int) -> Iterator[Ticks]:
     units = math.ceil(duration / tau)
     units_per_block = max(1, TICKS_PER_OBJECT // spec.max_ticks)
     start = np.datetime64(spec.date_from.replace(tzinfo=None), "us")
+    last_bid = spec.initial_bid
+    last_second = 0.0
 
     for block_index, first_unit in enumerate(range(0, units, units_per_block)):
         block_units = min(units_per_block, units - first_unit)
@@ -82,10 +84,14 @@ def generate_blocks(spec: TickSpec, seed: int) -> Iterator[Ticks]:
         seconds = np.sort(unit_of_tick * tau + rng.random(counts.sum()) * tau)
         seconds = seconds[seconds <= duration]
 
-        gaps = np.diff(seconds, prepend=first_unit * tau)
+        gaps = np.diff(seconds, prepend=last_second)
         steps = spec.trend_drift * gaps + spec.volatility_sigma * np.sqrt(gaps) * rng.standard_normal(len(gaps))
-        bid = spec.initial_bid + np.cumsum(steps)
+        bid = last_bid + np.cumsum(steps)
         spread = np.maximum(rng.normal(spec.spread_mean, spec.spread_stdev, len(gaps)), 0.0)
+
+        if len(seconds) > 0:
+            last_bid = bid[-1]
+            last_second = seconds[-1]
 
         timestamps = start + (seconds * 1_000_000).astype("int64").astype("timedelta64[us]")
         yield Ticks(timestamps=timestamps, bid=bid, ask=bid + spread)
