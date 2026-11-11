@@ -208,3 +208,27 @@ def test_a_range_shorter_than_one_block_gives_a_single_block_inside_the_range():
     assert len(blocks[0].timestamps) > 0
     assert blocks[0].timestamps[0] >= np.datetime64("2025-01-01T00:00:00", "us")
     assert blocks[0].timestamps[-1] <= np.datetime64("2025-01-01T00:00:05", "us")
+
+
+def test_ticks_after_date_to_in_the_last_partial_time_unit_are_dropped():
+    date_from = datetime(2025, 1, 1, tzinfo=timezone.utc)
+    spec = TickSpec(
+        date_from=date_from,
+        date_to=date_from + timedelta(seconds=2.5),
+        initial_bid=110.0,
+        trend_drift=0.0,
+        volatility_sigma=0.002,
+        spread_mean=0.02,
+        spread_stdev=0.005,
+        time_unit_seconds=1.0,
+        mean_ticks=200.0,
+        dispersion=4.0,
+        min_ticks=0,
+        max_ticks=1000,
+    )
+
+    blocks = list(generate_blocks(spec, seed=42))
+    timestamps = np.concatenate([block.timestamps for block in blocks])
+
+    assert timestamps[-1] <= np.datetime64("2025-01-01T00:00:02.500000", "us")
+    assert timestamps[-1] > np.datetime64("2025-01-01T00:00:02.000000", "us")
