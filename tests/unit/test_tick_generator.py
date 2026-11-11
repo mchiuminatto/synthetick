@@ -232,3 +232,36 @@ def test_ticks_after_date_to_in_the_last_partial_time_unit_are_dropped():
 
     assert timestamps[-1] <= np.datetime64("2025-01-01T00:00:02.500000", "us")
     assert timestamps[-1] > np.datetime64("2025-01-01T00:00:02.000000", "us")
+
+
+def test_a_fixed_seed_gives_known_first_ticks():
+    # Golden values recorded once from the ADR-0003 scheme (seed 42, one block).
+    # If this fails, the dataset changed for every seed: only update it on purpose.
+    date_from = datetime(2025, 1, 1, tzinfo=timezone.utc)
+    spec = TickSpec(
+        date_from=date_from,
+        date_to=date_from + timedelta(seconds=5),
+        initial_bid=110.0,
+        trend_drift=0.0,
+        volatility_sigma=0.002,
+        spread_mean=0.02,
+        spread_stdev=0.005,
+        time_unit_seconds=1.0,
+        mean_ticks=10.0,
+        dispersion=4.0,
+        min_ticks=0,
+        max_ticks=50,
+    )
+
+    blocks = list(generate_blocks(spec, seed=42))
+    first = blocks[0]
+
+    assert len(blocks) == 1
+    assert len(first.timestamps) == 43
+    assert [str(t) for t in first.timestamps[:3]] == [
+        "2025-01-01T00:00:00.017881",
+        "2025-01-01T00:00:00.037252",
+        "2025-01-01T00:00:00.058150",
+    ]
+    assert first.bid[:3] == pytest.approx([109.99963580768191, 109.99971301635375, 109.99980167871371], abs=1e-9)
+    assert first.ask[:3] == pytest.approx([110.0189382280061, 110.02075256155533, 110.01715608750946], abs=1e-9)
