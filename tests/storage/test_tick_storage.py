@@ -69,3 +69,42 @@ def test_blocks_of_uneven_sizes_are_cut_into_objects_of_exactly_ticks_per_object
     written = [value for table in tables for value in table.column("timestamp").to_pylist()]
     first_instant = datetime(2025, 1, 1, tzinfo=timezone.utc)
     assert written == [first_instant + timedelta(milliseconds=i) for i in range(16)]
+
+
+def test_an_exact_multiple_of_ticks_per_object_leaves_no_empty_trailing_object(s3, bucket):
+    start = np.datetime64("2025-01-01T00:00:00", "us")
+
+    def block(first: int, count: int) -> Ticks:
+        numbers = np.arange(first, first + count)
+        return Ticks(
+            timestamps=start + numbers.astype("timedelta64[ms]"),
+            bid=np.full(count, 110.5),
+            ask=np.full(count, 110.52),
+        )
+
+    blocks = [block(0, 6), block(6, 6), block(12, 8)]
+
+    write_blocks(blocks, prefix=PREFIX, ticks_per_object=10)
+
+    names = sorted(
+        info.base_name for info in s3.get_file_info(fs.FileSelector(bucket + "/" + PREFIX))
+    )
+    assert names == ["part-000001.parquet", "part-000002.parquet"]
+    tables = [pq.read_table(f"{bucket}/{PREFIX}{name}", filesystem=s3) for name in names]
+    assert [table.num_rows for table in tables] == [10, 10]
+
+
+def test_an_empty_stream_writes_no_objects(s3, bucket):
+    start = np.datetime64("2025-01-01T00:00:00", "us")
+    empty_block = Ticks(
+        timestamps=start + np.arange(0).astype("timedelta64[ms]"),
+        bid=np.empty(0),
+        ask=np.empty(0),
+    )
+    selector = fs.FileSelector(bucket + "/" + PREFIX, allow_not_found=True)
+
+    write_blocks([], prefix=PREFIX, ticks_per_object=10)
+    assert s3.get_file_info(selector) == []
+
+    write_blocks([empty_block, empty_block], prefix=PREFIX, ticks_per_object=10)
+    assert s3.get_file_info(selector) == []
