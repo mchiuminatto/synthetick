@@ -134,3 +134,22 @@ def test_blocks_are_written_as_parquet_objects_under_the_range_prefix_with_the_d
     first = tables[0].to_pylist()[0]
     assert first["bid"] == Decimal("110.5")
     assert first["ask"] == Decimal("110.52")
+
+
+def test_write_blocks_returns_the_object_count_and_the_record_count_it_wrote(s3, bucket):
+    start = np.datetime64("2025-01-01T00:00:00", "us")
+
+    def block(first: int, count: int) -> Ticks:
+        numbers = np.arange(first, first + count)
+        return Ticks(
+            timestamps=start + numbers.astype("timedelta64[ms]"),
+            bid=np.full(count, 110.5),
+            ask=np.full(count, 110.52),
+        )
+
+    blocks = [block(0, 4), block(4, 7), block(11, 5)]
+
+    objects, records = write_blocks(blocks, prefix=PREFIX, ticks_per_object=10)
+
+    assert objects == 2
+    assert records == 16

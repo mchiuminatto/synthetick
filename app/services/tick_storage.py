@@ -78,22 +78,31 @@ def _slice(ticks: Ticks, start: int, stop: int) -> Ticks:
     return Ticks(ticks.timestamps[start:stop], ticks.bid[start:stop], ticks.ask[start:stop])
 
 
-def write_blocks(blocks: Iterable[Ticks], prefix: str, ticks_per_object: int) -> None:
-    """Write a stream of blocks as objects of exactly ticks_per_object ticks (the last may be shorter)."""
+def write_blocks(blocks: Iterable[Ticks], prefix: str, ticks_per_object: int) -> tuple[int, int]:
+    """Write a stream of blocks as objects of exactly ticks_per_object ticks (the last may be shorter).
+
+    Return (objects written, records written).
+    """
     pending: list[Ticks] = []
     pending_rows = 0
-    part = 1
+    objects = 0
+    records = 0
     for block in blocks:
         pending.append(block)
         pending_rows += len(block.timestamps)
         while pending_rows >= ticks_per_object:
             joined = _join(pending)
-            part += write_ticks(_slice(joined, 0, ticks_per_object), prefix, ticks_per_object, first_part=part)
+            objects += write_ticks(
+                _slice(joined, 0, ticks_per_object), prefix, ticks_per_object, first_part=objects + 1
+            )
+            records += ticks_per_object
             rest = _slice(joined, ticks_per_object, pending_rows)
             pending = [rest]
             pending_rows = len(rest.timestamps)
     if pending_rows > 0:
-        write_ticks(_join(pending), prefix, ticks_per_object, first_part=part)
+        objects += write_ticks(_join(pending), prefix, ticks_per_object, first_part=objects + 1)
+        records += pending_rows
+    return objects, records
 
 
 def read_ticks(bucket: str, prefix: str) -> list[dict[str, str]]:
