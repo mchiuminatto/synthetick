@@ -1,3 +1,4 @@
+from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 
 import numpy as np
@@ -6,7 +7,7 @@ import pyarrow.parquet as pq
 from pyarrow import fs
 
 from app.services.tick_generator import Ticks
-from app.services.tick_storage import write_ticks
+from app.services.tick_storage import write_blocks, write_ticks
 
 PREFIX = "tick-range/5b0f3c1e-9d7a-4c55-8a53-0d6d2f1c7e11/"
 
@@ -42,3 +43,29 @@ def test_written_ticks_are_parquet_objects_under_the_range_prefix_with_the_docum
     first = tables[0].to_pylist()[0]
     assert first["bid"] == Decimal("110.5")
     assert first["ask"] == Decimal("110.52")
+
+
+def test_blocks_of_uneven_sizes_are_cut_into_objects_of_exactly_ticks_per_object_rows(s3, bucket):
+    start = np.datetime64("2025-01-01T00:00:00", "us")
+
+    def block(first: int, count: int) -> Ticks:
+        numbers = np.arange(first, first + count)
+        return Ticks(
+            timestamps=start + numbers.astype("timedelta64[ms]"),
+            bid=np.full(count, 110.5),
+            ask=np.full(count, 110.52),
+        )
+
+    blocks = [block(0, 4), block(4, 7), block(11, 5)]
+
+    write_blocks(blocks, prefix=PREFIX, ticks_per_object=10)
+
+    names = sorted(
+        info.base_name for info in s3.get_file_info(fs.FileSelector(bucket + "/" + PREFIX))
+    )
+    assert names == ["part-000001.parquet", "part-000002.parquet"]
+    tables = [pq.read_table(f"{bucket}/{PREFIX}{name}", filesystem=s3) for name in names]
+    assert [table.num_rows for table in tables] == [10, 6]
+    written = [value for table in tables for value in table.column("timestamp").to_pylist()]
+    first_instant = datetime(2025, 1, 1, tzinfo=timezone.utc)
+    assert written == [first_instant + timedelta(milliseconds=i) for i in range(16)]

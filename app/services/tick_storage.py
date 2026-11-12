@@ -1,4 +1,5 @@
 import os
+from collections.abc import Iterable
 
 import numpy as np
 import pyarrow as pa
@@ -39,8 +40,11 @@ def _decimal(prices: np.ndarray) -> pa.Array:
     return pa.array(np.round(prices, 8)).cast(pa.decimal128(18, 8), safe=False)
 
 
-def write_ticks(ticks: Ticks, prefix: str, ticks_per_object: int) -> int:
-    """Write the ticks as part-<n>.parquet objects under the prefix; return the object count."""
+def write_ticks(ticks: Ticks, prefix: str, ticks_per_object: int, first_part: int = 1) -> int:
+    """Write the ticks as part-<n>.parquet objects under the prefix; return the object count.
+
+    The first object is numbered first_part, so a range can be written in several calls.
+    """
     s3 = filesystem()
     table = pa.table(
         {
@@ -55,11 +59,41 @@ def write_ticks(ticks: Ticks, prefix: str, ticks_per_object: int) -> int:
         objects += 1
         pq.write_table(
             table.slice(start, ticks_per_object),
-            f"{bucket_name()}/{prefix}part-{objects:06d}.parquet",
+            f"{bucket_name()}/{prefix}part-{first_part + objects - 1:06d}.parquet",
             filesystem=s3,
             row_group_size=ROW_GROUP_SIZE,
         )
     return objects
+
+
+def _join(pieces: list[Ticks]) -> Ticks:
+    return Ticks(
+        timestamps=np.concatenate([piece.timestamps for piece in pieces]),
+        bid=np.concatenate([piece.bid for piece in pieces]),
+        ask=np.concatenate([piece.ask for piece in pieces]),
+    )
+
+
+def _slice(ticks: Ticks, start: int, stop: int) -> Ticks:
+    return Ticks(ticks.timestamps[start:stop], ticks.bid[start:stop], ticks.ask[start:stop])
+
+
+def write_blocks(blocks: Iterable[Ticks], prefix: str, ticks_per_object: int) -> None:
+    """Write a stream of blocks as objects of exactly ticks_per_object ticks (the last may be shorter)."""
+    pending: list[Ticks] = []
+    pending_rows = 0
+    part = 1
+    for block in blocks:
+        pending.append(block)
+        pending_rows += len(block.timestamps)
+        while pending_rows >= ticks_per_object:
+            joined = _join(pending)
+            part += write_ticks(_slice(joined, 0, ticks_per_object), prefix, ticks_per_object, first_part=part)
+            rest = _slice(joined, ticks_per_object, pending_rows)
+            pending = [rest]
+            pending_rows = len(rest.timestamps)
+    if pending_rows > 0:
+        write_ticks(_join(pending), prefix, ticks_per_object, first_part=part)
 
 
 def read_ticks(bucket: str, prefix: str) -> list[dict[str, str]]:
