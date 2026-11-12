@@ -108,3 +108,29 @@ def test_an_empty_stream_writes_no_objects(s3, bucket):
 
     write_blocks([empty_block, empty_block], prefix=PREFIX, ticks_per_object=10)
     assert s3.get_file_info(selector) == []
+
+
+def test_blocks_are_written_as_parquet_objects_under_the_range_prefix_with_the_documented_schema(
+    s3, bucket
+):
+    start = np.datetime64("2025-01-01T00:00:00", "us")
+
+    def block(first: int, count: int) -> Ticks:
+        numbers = np.arange(first, first + count)
+        return Ticks(
+            timestamps=start + numbers.astype("timedelta64[ms]"),
+            bid=np.full(count, 110.5),
+            ask=np.full(count, 110.52),
+        )
+
+    write_blocks([block(0, 7), block(7, 5)], prefix=PREFIX, ticks_per_object=10)
+
+    names = sorted(
+        info.base_name for info in s3.get_file_info(fs.FileSelector(bucket + "/" + PREFIX))
+    )
+    assert names == ["part-000001.parquet", "part-000002.parquet"]
+    tables = [pq.read_table(f"{bucket}/{PREFIX}{name}", filesystem=s3) for name in names]
+    assert all(table.schema.equals(DOCUMENTED_SCHEMA) for table in tables)
+    first = tables[0].to_pylist()[0]
+    assert first["bid"] == Decimal("110.5")
+    assert first["ask"] == Decimal("110.52")
