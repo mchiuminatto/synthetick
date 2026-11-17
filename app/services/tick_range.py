@@ -10,7 +10,7 @@ from sqlalchemy.ext.asyncio import create_async_engine
 from sqlalchemy.pool import NullPool
 
 from app.services import tick_storage
-from app.services.tick_generator import TickSpec, generate_blocks
+from app.services.tick_generator import TICKS_PER_OBJECT, TickSpec, generate_blocks
 
 
 def _engine():
@@ -126,8 +126,7 @@ async def process_next_tick_range() -> bool:
         )
         blocks = generate_blocks(spec, seed=row["seed"])
         prefix = f"tick-range/{row['tick_range_id']}/"
-        ticks_per_object = int(os.environ.get("TICKS_PER_OBJECT", "100000"))
-        objects, records = tick_storage.write_blocks(blocks, prefix, ticks_per_object)
+        objects, records = tick_storage.write_blocks(blocks, prefix, TICKS_PER_OBJECT)
         await connection.execute(
             text(
                 """
@@ -143,7 +142,7 @@ async def process_next_tick_range() -> bool:
                 "bucket": tick_storage.bucket_name(),
                 "prefix": prefix,
                 "objects": objects,
-                "per_object": ticks_per_object,
+                "per_object": TICKS_PER_OBJECT,
                 "id": row["tick_range_id"],
             },
         )
